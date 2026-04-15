@@ -1,0 +1,3 @@
+spring.application.name=ConfigService
+
+spring.datasource.uri=https://github.com/SandeshDunbale/config-server-repo-edugov.git
