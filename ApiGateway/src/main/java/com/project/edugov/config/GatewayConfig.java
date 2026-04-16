@@ -11,9 +11,9 @@ public class GatewayConfig {
     @Bean
     public RouteLocator customRouteLocator(RouteLocatorBuilder builder) {
         return builder.routes()
-                // Route for the Identity Service
                 .route("identity-service-route", r -> r
-                        .path("/api/auth/**")
+                        // UPDATE: Added /api/users/** to the allowed paths
+                        .path("/api/auth/**", "/api/users/**") 
                         .uri("lb://IDENTITYSERVICEEDUGOV"))
                 .build();
     }
