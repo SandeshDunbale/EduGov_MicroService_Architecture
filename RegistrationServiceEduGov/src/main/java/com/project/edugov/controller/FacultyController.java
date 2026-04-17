@@ -9,10 +9,12 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @RestController
-@RequestMapping("/api/v1/faculties")
+@RequestMapping("/faculty")
 @RequiredArgsConstructor
 public class FacultyController {
 
@@ -39,7 +41,7 @@ public class FacultyController {
     }
 
     // 4. Update Faculty Profile
-    @PutMapping("/{id}")
+    @PutMapping("/{id}/update")
     public ResponseEntity<FacultyResponseDTO> update(@PathVariable Long id, @RequestBody FacultyDTO dto) {
         return ResponseEntity.ok(facultyService.updateFaculty(id, dto));
     }
@@ -56,10 +58,18 @@ public class FacultyController {
         return ResponseEntity.ok(facultyService.declineFaculty(id));
     }
 
-    // 7. Delete Faculty Profile
-    @DeleteMapping("/{id}")
-    public ResponseEntity<Void> delete(@PathVariable Long id) {
+
+    
+    
+    @DeleteMapping("/{id}/delete")
+    public ResponseEntity<Map<String, String>> delete(@PathVariable Long id) {
         facultyService.deleteFaculty(id);
-        return ResponseEntity.noContent().build();
+        
+        // Create a response map
+        Map<String, String> response = new HashMap<>();
+        response.put("message", "Faculty with ID " + id + " has been successfully deleted.");
+        response.put("status", "SUCCESS");
+        
+        return ResponseEntity.ok(response);
     }
 }

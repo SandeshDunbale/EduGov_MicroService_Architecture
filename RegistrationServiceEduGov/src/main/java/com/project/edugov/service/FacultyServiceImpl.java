@@ -80,10 +80,10 @@ public class FacultyServiceImpl implements FacultyService {
                 .orElseThrow(() -> new RuntimeException("Faculty profile not found"));
 
         // 1. Update Identity Service first
-        identityClient.updateStatus(faculty.getUserId(), "APPROVED");
+        identityClient.updateStatus(faculty.getUserId(), "APPROVE");
 
         // 2. Update local state
-        faculty.setStatus(Status.APPROVED);
+        faculty.setStatus(Status.APPROVE);
         Faculty updated = facultyRepo.save(faculty);
 
         // 3. Notify the Faculty member
@@ -127,13 +127,17 @@ public class FacultyServiceImpl implements FacultyService {
         return convertToResponse(facultyRepo.save(faculty), null);
     }
 
+
+   
     @Override
     @Transactional
-    public void deleteFaculty(Long id) {
+    public String deleteFaculty(Long id) {
         Faculty faculty = facultyRepo.findById(id)
-                .orElseThrow(() -> new RuntimeException("Faculty not found"));
+                .orElseThrow(() -> new RuntimeException("Faculty not found with ID: " + id));
         
         facultyRepo.delete(faculty);
+        
+        return "Faculty with ID " + id + " deleted successfully!";
     }
 
     @Override
@@ -142,8 +146,8 @@ public class FacultyServiceImpl implements FacultyService {
         Faculty faculty = facultyRepo.findById(id)
                 .orElseThrow(() -> new RuntimeException("Faculty not found"));
         
-        faculty.setStatus(Status.REJECTED);
-        identityClient.updateStatus(faculty.getUserId(), "REJECTED");
+        faculty.setStatus(Status.REJECT);
+        identityClient.updateStatus(faculty.getUserId(), "REJECT");
         
         return convertToResponse(facultyRepo.save(faculty), null);
     }

@@ -24,6 +24,7 @@ public class Student {
     private String phone;
     private String address;
 
-    @Enumerated(EnumType.STRING)
-    private Status status = Status.PENDING;
+    @Enumerated(EnumType.STRING) // This ensures "APPROVE" is saved as text
+    @Column(name = "status", length = 20) // Give it enough length
+    private Status status;
 }

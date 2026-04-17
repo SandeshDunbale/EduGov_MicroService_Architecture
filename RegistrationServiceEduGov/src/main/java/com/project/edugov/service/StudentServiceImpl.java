@@ -57,24 +57,37 @@ public class StudentServiceImpl implements StudentService {
         return convertToResponseDTO(savedStudent, iamUser);
     }
 
+//    @Override
+//    public StudentResponseDTO approveStudent(Long id) {
+//        Student student = studentRepo.findById(id)
+//                .orElseThrow(() -> new ResourceNotFoundException("Student not found ID: " + id));
+//        
+//        student.setStatus(Status.APPROVE);
+//        
+//       
+//        identityClient.updateStatus(student.getUserId(), "APPROVE");
+//        
+//   /**   notificationClient.createNotification(
+//                1L, 
+//                student.getUserId(),
+//                "Your registration has been approved!",
+//                "SECURITY",
+//                "System"
+//        );**/
+//        
+//        return convertToResponseDTO(studentRepo.save(student), null);
+//    }
     @Override
     public StudentResponseDTO approveStudent(Long id) {
         Student student = studentRepo.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Student not found ID: " + id));
         
-        student.setStatus(Status.APPROVED);
+        log.info("Approving Student ID: {} with Identity User ID: {}", id, student.getUserId());
         
-       
-        identityClient.updateStatus(student.getUserId(), "APPROVED");
+        // This sends "APPROVE" as a parameter, NOT as part of the URL path
+        identityClient.updateStatus(student.getUserId(), "APPROVE"); 
         
-   /**   notificationClient.createNotification(
-                1L, 
-                student.getUserId(),
-                "Your registration has been approved!",
-                "SECURITY",
-                "System"
-        );**/
-        
+        student.setStatus(Status.APPROVE);
         return convertToResponseDTO(studentRepo.save(student), null);
     }
 
@@ -83,10 +96,10 @@ public class StudentServiceImpl implements StudentService {
         Student student = studentRepo.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Student not found ID: " + id));
         
-        student.setStatus(Status.REJECTED);
+        student.setStatus(Status.REJECT);
         
         // FIXED: Changed iamClient to identityClient
-        identityClient.updateStatus(student.getUserId(), "REJECTED");
+        identityClient.updateStatus(student.getUserId(), "REJECT");
         
         return convertToResponseDTO(studentRepo.save(student), null);
     }
@@ -115,9 +128,14 @@ public class StudentServiceImpl implements StudentService {
     }
 
     @Override
-    public void deleteStudent(Long id) {
-        if (!studentRepo.existsById(id)) throw new ResourceNotFoundException("ID not found: " + id);
-        studentRepo.deleteById(id);
+    @Transactional
+    public String deleteStudent(Long id) {
+        Student student = studentRepo.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Student not found with ID: " + id));
+        
+        studentRepo.delete(student);
+        
+        return "Student '" + student.getName() + "' (ID: " + id + ") deleted successfully.";
     }
 
     private StudentResponseDTO convertToResponseDTO(Student student, UserResponseDTO iamUser) {

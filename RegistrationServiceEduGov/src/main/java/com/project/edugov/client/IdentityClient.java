@@ -6,7 +6,7 @@ import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.*;
 
 // Feign will look for "identity-service" in the Eureka dashboard
-@FeignClient(name = "IdentityServiceEduGov") 
+@FeignClient(name = "IDENTITYSERVICEEDUGOV") 
 public interface IdentityClient {
 
     @PostMapping("/api/identity/register")

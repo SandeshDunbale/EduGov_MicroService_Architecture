@@ -1,15 +1,15 @@
 package com.project.edugov.dto;
 
-import lombok.AllArgsConstructor;
+import com.project.edugov.model.Role;
+import com.project.edugov.model.Status;
+
 import lombok.Data;
-import lombok.NoArgsConstructor;
 
 @Data
-@NoArgsConstructor
-@AllArgsConstructor
 public class UserResponseDTO {
-    private Long userId;    // This is the "Key" that connects your two services
-    private String email;
+    private Long userId;
     private String name;
-    private String role;
+    private String email;
+    private Role role;   // Must match the Enum name exactly
+    private Status status; 
 }

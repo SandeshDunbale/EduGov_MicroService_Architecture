@@ -19,5 +19,5 @@ public interface StudentService {
     
     Optional<StudentResponseDTO> getStudentById(Long id);
     
-    void deleteStudent(Long id);
+    String deleteStudent(Long id);
 }
