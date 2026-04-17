@@ -42,7 +42,9 @@ public class StudentServiceImpl implements StudentService {
             dto.getEmail(), 
             dto.getPassword(), 
             dto.getName(), 
-            "STUDENT"
+            "STUDENT",
+            dto.getPhone()
+                    
         );
         
         // FIXED: Changed identityService 
@@ -127,16 +129,45 @@ public class StudentServiceImpl implements StudentService {
         return studentRepo.findById(id).map(s -> convertToResponseDTO(s, null));
     }
 
+    
+    
+    
+    
+    
     @Override
     @Transactional
     public String deleteStudent(Long id) {
+        // 1. Find the student to get the userId
         Student student = studentRepo.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Student not found with ID: " + id));
+                .orElseThrow(() -> new ResourceNotFoundException("Student not found ID: " + id));
         
+        Long userIdToDelete = student.getUserId();
+
+        try {
+            // 2. Call the Identity Service to delete the User record
+            identityClient.deleteUser(userIdToDelete);
+            log.info("Successfully deleted User ID {} from Identity Service", userIdToDelete);
+        } catch (Exception e) {
+            log.error("Failed to delete user from Identity Service: {}", e.getMessage());
+            // Decide: Do you want to stop the deletion if the Identity Service fails?
+            // throw new RuntimeException("Could not delete user record, student deletion aborted.");
+        }
+        
+        // 3. Delete from your local Student table
         studentRepo.delete(student);
         
-        return "Student '" + student.getName() + "' (ID: " + id + ") deleted successfully.";
+        return "Student and associated User record deleted successfully.";
     }
+//    @Override
+//    @Transactional
+//    public String deleteStudent(Long id) {
+//        Student student = studentRepo.findById(id)
+//                .orElseThrow(() -> new ResourceNotFoundException("Student not found with ID: " + id));
+//        
+//        studentRepo.delete(student);
+//        
+//        return "Student '" + student.getName() + "' (ID: " + id + ") deleted successfully.";
+//    }
 
     private StudentResponseDTO convertToResponseDTO(Student student, UserResponseDTO iamUser) {
         StudentResponseDTO result = mapper.map(student, StudentResponseDTO.class);

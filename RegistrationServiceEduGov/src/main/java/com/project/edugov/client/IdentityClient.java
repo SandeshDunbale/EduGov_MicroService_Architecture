@@ -14,4 +14,8 @@ public interface IdentityClient {
 
     @PatchMapping("/api/identity/status/{userId}")
     void updateStatus(@PathVariable("userId") Long userId, @RequestParam("status") String status);
+    
+    
+    @DeleteMapping("/api/identity/users/{userId}") // Ensure this path matches the Identity Controller
+    void deleteUser(@PathVariable("userId") Long userId);
 }

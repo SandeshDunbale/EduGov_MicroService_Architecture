@@ -11,5 +11,6 @@ public class UserCreateRequest {
     private String email;
     private String password;
     private String name;
-    private String role; // You will pass "STUDENT" or "FACULTY" here
+    private String role;
+    private String phone ;// You will pass "STUDENT" or "FACULTY" here
 }

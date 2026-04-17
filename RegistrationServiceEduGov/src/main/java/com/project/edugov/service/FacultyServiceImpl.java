@@ -42,7 +42,8 @@ public class FacultyServiceImpl implements FacultyService {
                 dto.getEmail(),
                 dto.getPassword(),
                 dto.getName(),
-                "FACULTY"
+                "FACULTY",
+                dto.getPhone()
         );
         UserResponseDTO iamUser = identityClient.registerUser(iamRequest);
 

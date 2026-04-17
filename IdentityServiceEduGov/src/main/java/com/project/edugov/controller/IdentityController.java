@@ -3,6 +3,7 @@ package com.project.edugov.controller;
 import com.project.edugov.dto.UserResponseDTO;
 import com.project.edugov.model.Status;
 import com.project.edugov.model.User;
+import com.project.edugov.repository.UserRepository;
 import com.project.edugov.service.UserService;
 import org.modelmapper.ModelMapper;
 import org.springframework.http.ResponseEntity;
@@ -15,15 +16,17 @@ public class IdentityController {
 
     private final UserService userService;
     private final ModelMapper modelMapper;
+    private final UserRepository userRepository;
 
     /**
      * Data Transfer Object (Record) for Registration
      */
     public record UserCreateRequest(String name, String email, String password, String phone, String role) {}
 
-    public IdentityController(UserService userService, ModelMapper modelMapper) {
+    public IdentityController(UserService userService, ModelMapper modelMapper,UserRepository userRepository) {
         this.userService = userService;
         this.modelMapper = modelMapper;
+		this.userRepository = userRepository;
     }
 
     /**
@@ -33,6 +36,20 @@ public class IdentityController {
     public ResponseEntity<UserResponseDTO> registerUser(@RequestBody UserCreateRequest request) {
         User savedUser = userService.registerUser(request);
         return ResponseEntity.ok(modelMapper.map(savedUser, UserResponseDTO.class));
+    }
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    @DeleteMapping("/users/{userId}")
+    public ResponseEntity<Void> deleteUser(@PathVariable Long userId) {
+        userRepository.deleteById(userId);
+        return ResponseEntity.noContent().build();
     }
 
     /**
@@ -50,4 +67,6 @@ public class IdentityController {
         User updatedUser = userService.updateUserStatus(id, status);
         return ResponseEntity.ok(modelMapper.map(updatedUser, UserResponseDTO.class));
     }
+    
+    
 }
