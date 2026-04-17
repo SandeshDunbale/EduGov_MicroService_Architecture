@@ -39,10 +39,21 @@ public class SecurityConfig {
         http
             .csrf(csrf -> csrf.disable())
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/api/auth/**").permitAll() // Open login/logout routes
+                // 1. PUBLIC ENDPOINTS (No token required - matches the Gateway's RouteValidator)
+                .requestMatchers(
+                        "/api/auth/login", 
+                        "/api/auth/resetPassword", 
+                        "/api/users/recoverEmail"
+                ).permitAll()
+
+                // 2. SECURE EVERYTHING ELSE
+                // Notice we removed .hasRole()! We just ensure they are authenticated.
+                // The Gateway handles the specific role restrictions before the request even gets here.
                 .anyRequest().authenticated()
             )
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+            
+            // We KEEP this filter because it checks the database for Blacklisted (Logged out) tokens!
             .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
