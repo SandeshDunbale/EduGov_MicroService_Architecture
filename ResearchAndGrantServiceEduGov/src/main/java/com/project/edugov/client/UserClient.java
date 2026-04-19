@@ -8,7 +8,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 
 import com.project.edugov.dto.UserExternalDTO;
 
-@FeignClient(name = "user-service", contextId = "userClient")
+@FeignClient(name = "IDENTITYSERVICEEDUGOV", contextId = "userClient")
 public interface UserClient {
 
     // Used to verify if the user approving the grant is actually a Program Manager

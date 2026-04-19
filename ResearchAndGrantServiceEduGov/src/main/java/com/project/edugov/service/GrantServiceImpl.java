@@ -198,7 +198,23 @@ public class GrantServiceImpl implements GrantService {
 		Grant grant = grantRepository.findByProject_ProjectId(projectId).orElseThrow(() -> {
 			return new RuntimeException("No grant found for this project.");
 		});
-		return modelMapper.map(grant, GrantResponseDTO.class);
+		
+		// 1. Map the basic database fields first (Grant ID, Amount, Date, etc.)
+		GrantResponseDTO response = modelMapper.map(grant, GrantResponseDTO.class);
+		
+		// 2. NEW FIX: Fetch the Manager's role dynamically from the Identity Service!
+		if (grant.getApprovedByUserId() != null) {
+			try {
+				UserExternalDTO manager = userClient.getUserById(grant.getApprovedByUserId());
+				response.setApprovedByRole(manager.getRole());
+			} catch (Exception e) {
+				log.warn("Could not fetch User details for ID: {}", grant.getApprovedByUserId());
+				response.setApprovedByRole("UNKNOWN_ROLE"); 
+			}
+		}
+
+		// 3. Return the fully populated response
+		return response;
 	}
 
 	@Override

@@ -7,11 +7,11 @@ import org.springframework.web.bind.annotation.PathVariable;
 import com.project.edugov.dto.FacultyMinimalDTO;
 
 // We assume the Identity/User team named their service "user-service" in Eureka
-@FeignClient(name = "user-service", contextId = "facultyClient") 
+//1. Point to the Registration Service in Eureka
+@FeignClient(name = "REGISTRATIONSERVICEEDUGOV", contextId = "facultyClient") 
 public interface FacultyClient {
 
-    // Fetches a single faculty member to validate them before creating a project
-    @GetMapping("/faculty/{id}")
-    FacultyMinimalDTO getFacultyById(@PathVariable("id") Long facultyId);
-    
+ // 2. Match the exact URL from the controller you just pasted (NO /api)
+ @GetMapping("/faculty/{id}") 
+ FacultyMinimalDTO getFacultyById(@PathVariable("id") Long facultyId);
 }
