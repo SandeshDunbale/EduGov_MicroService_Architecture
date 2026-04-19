@@ -20,6 +20,10 @@ public interface IdentityClient {
 //    void deleteUser(@PathVariable("userId") Long userId);
     
     
+    
+    @GetMapping("/api/identity/users/{userId}")
+    UserResponseDTO getUserById(@PathVariable("userId") Long userId);
+    
     @DeleteMapping("/api/identity/users/{userId}")
     void deleteUser(@PathVariable("userId") Long userId);
 }

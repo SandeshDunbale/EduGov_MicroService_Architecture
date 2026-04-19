@@ -70,31 +70,70 @@ public class FacultyServiceImpl implements FacultyService {
     @Override
     public List<FacultyResponseDTO> getFacultyByStatus(Status status) {
         return facultyRepo.findByStatus(status).stream()
-                .map(f -> convertToResponse(f, null)) // Passing null is fine now
+                .map(f -> {
+                    // 1. Fetch identity data for this specific faculty's userId
+                    UserResponseDTO identityData = identityClient.getUserById(f.getUserId());
+                    
+                    // 2. Pass the real data instead of 'null'
+                    return convertToResponse(f, identityData);
+                })
                 .toList();
     }
 
+//    @Override
+//    public Optional<FacultyResponseDTO> getFacultyById(Long id) {
+//        return facultyRepo.findById(id).map(f -> convertToResponse(f, null));
+//    }
+
+    
     @Override
     public Optional<FacultyResponseDTO> getFacultyById(Long id) {
-        return facultyRepo.findById(id).map(f -> convertToResponse(f, null));
+        return facultyRepo.findById(id).map(f -> {
+            // 1. Fetch the user details from Identity Service using the userId stored in Faculty
+            UserResponseDTO identityData = identityClient.getUserById(f.getUserId());
+            
+            // 2. Pass those details to the converter instead of 'null'
+            return convertToResponse(f, identityData);
+        });
     }
-
+//    @Override
+//    @Transactional
+//    public FacultyResponseDTO updateFaculty(Long id, FacultyDTO dto) {
+//        Faculty faculty = facultyRepo.findById(id)
+//                .orElseThrow(() -> new RuntimeException("Faculty not found"));
+//        
+//        faculty.setName(dto.getName());
+//        faculty.setPhone(dto.getPhone());
+//        faculty.setDepartment(dto.getDepartment());
+//        faculty.setDob(dto.getDob());
+//        
+//        Faculty updated = facultyRepo.save(faculty);
+//        // Fixed: You were passing 'saved' and 'iamUser' which didn't exist here
+//        return convertToResponse(updated, null); 
+//    }
     @Override
     @Transactional
     public FacultyResponseDTO updateFaculty(Long id, FacultyDTO dto) {
+        // 1. Fetch the existing faculty record
         Faculty faculty = facultyRepo.findById(id)
-                .orElseThrow(() -> new RuntimeException("Faculty not found"));
+                .orElseThrow(() -> new RuntimeException("Faculty not found with ID: " + id));
         
+        // 2. Update the local business fields
         faculty.setName(dto.getName());
         faculty.setPhone(dto.getPhone());
         faculty.setDepartment(dto.getDepartment());
         faculty.setDob(dto.getDob());
-        
-        Faculty updated = facultyRepo.save(faculty);
-        // Fixed: You were passing 'saved' and 'iamUser' which didn't exist here
-        return convertToResponse(updated, null); 
-    }
+     
+        // 3. Save the changes to the Faculty database
+        Faculty updatedFaculty = facultyRepo.save(faculty);
 
+        // 4. CROSS-SERVICE CALL: Fetch the email from Identity Service
+        // This is the step that fixes the "null" email in the JSON response
+        UserResponseDTO identityData = identityClient.getUserById(updatedFaculty.getUserId());
+
+        // 5. Convert and return (Passing the real identityData instead of 'null')
+        return convertToResponse(updatedFaculty, identityData);
+    }
     @Override
     @Transactional
     public FacultyResponseDTO declineFaculty(Long id) {
@@ -130,6 +169,9 @@ public class FacultyServiceImpl implements FacultyService {
      */
     private FacultyResponseDTO convertToResponse(Faculty faculty, UserResponseDTO identityData) {
         FacultyResponseDTO resp = mapper.map(faculty, FacultyResponseDTO.class);
+        
+        
+        resp.setPhone(faculty.getPhone());
         
         if (identityData != null) {
             resp.setEmail(identityData.getEmail());

@@ -136,33 +136,65 @@ public class StudentServiceImpl implements StudentService {
 
     // ... Other methods (get, update, delete) stay the same ...
 
-    @Override
-    public List<StudentResponseDTO> getStudentsByStatus(Status status) {
-        return studentRepo.findByStatus(status).stream()
-                .map(s -> convertToResponseDTO(s, null))
-                .toList();
-    }
-
+    
+    
+    
+    
+    
     @Override
     public StudentResponseDTO updateStudent(Long id, StudentDTO dto) {
+        // 1. Find the student in the local database
         Student student = studentRepo.findById(id)
                .orElseThrow(() -> new ResourceNotFoundException("Student not found ID: " + id));
         
+        // 2. Map the new changes from the DTO to the Entity
         mapper.map(dto, student);
-        return convertToResponseDTO(studentRepo.save(student), null);
+        Student saved = studentRepo.save(student);
+        
+        // 3. FETCH the email from Identity Service using the userId
+        // Without this call, identityData remains null, and so does the email
+        UserResponseDTO identityData = identityClient.getUserById(saved.getUserId());
+        
+        // 4. Pass the retrieved identityData to the converter
+        return convertToResponseDTO(saved, identityData);
     }
+ 
+//
+//    @Override
+//    public StudentResponseDTO updateStudent(Long id, StudentDTO dto) {
+//        Student student = studentRepo.findById(id)
+//               .orElseThrow(() -> new ResourceNotFoundException("Student not found ID: " + id));
+//        
+//        mapper.map(dto, student);
+//        return convertToResponseDTO(studentRepo.save(student), null);
+//    }
 
+//    @Override
+//    public Optional<StudentResponseDTO> getStudentById(Long id) {
+//        return studentRepo.findById(id).map(s -> convertToResponseDTO(s, null));
+//    }
+
+    
+    
     @Override
     public Optional<StudentResponseDTO> getStudentById(Long id) {
-        return studentRepo.findById(id).map(s -> convertToResponseDTO(s, null));
+        return studentRepo.findById(id).map(s -> {
+            UserResponseDTO identityData = identityClient.getUserById(s.getUserId());
+            return convertToResponseDTO(s, identityData);
+        });
     }
-
     
     
-    
-    
-    
-    
+    @Override
+    public List<StudentResponseDTO> getStudentsByStatus(Status status) {
+        return studentRepo.findByStatus(status).stream()
+                .map(s -> {
+                    // Fetch email/name for each student in the list
+                    UserResponseDTO identityData = identityClient.getUserById(s.getUserId());
+                    return convertToResponseDTO(s, identityData);
+                })
+                .toList();
+    }
         
        
 
