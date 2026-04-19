@@ -71,8 +71,23 @@ public class IdentityController {
         User updatedUser = userService.updateUserStatus(userId, status);
         return ResponseEntity.ok(modelMapper.map(updatedUser, UserResponseDTO.class));
     }
-//    
     
+    
+    @GetMapping("/users/{userId}")
+    public ResponseEntity<UserResponseDTO> getUserById(@PathVariable Long userId) {
+        // Fetch user from DB using repository or service
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found with id: " + userId));
+        
+        // Map the User entity to UserResponseDTO so the email is included
+        return ResponseEntity.ok(modelMapper.map(user, UserResponseDTO.class));
+    }
+    
+    
+    
+//    
+   
+       
     
 //    
 //    @Override
