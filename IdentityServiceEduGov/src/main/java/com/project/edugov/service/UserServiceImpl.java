@@ -89,6 +89,7 @@ public class UserServiceImpl implements UserService {
         user.setName(request.name());
         user.setEmail(request.email());
         user.setPhone(request.phone());
+        user.setDob(request.dob());
         
         // Crucial: Hash the password using the existing passwordEncoder bean
         user.setPasswordHash(passwordEncoder.encode(request.password()));
@@ -99,4 +100,29 @@ public class UserServiceImpl implements UserService {
 
         return userRepository.save(user);
     }
+    
+    
+    @Override
+    public void deleteUser(Long userId) {
+      //  log.info("Identity Service: Deleting user record for ID: {}", userId);
+        
+        if (!userRepository.existsById(userId)) {
+            throw new ResourceNotFoundException("User not found with ID: " + userId);
+        }
+        
+        userRepository.deleteById(userId);
+    }
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
 }

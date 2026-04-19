@@ -5,6 +5,9 @@ import com.project.edugov.model.Status;
 import com.project.edugov.model.User;
 import com.project.edugov.repository.UserRepository;
 import com.project.edugov.service.UserService;
+
+import java.time.LocalDate;
+
 import org.modelmapper.ModelMapper;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -21,7 +24,7 @@ public class IdentityController {
     /**
      * Data Transfer Object (Record) for Registration
      */
-    public record UserCreateRequest(String name, String email, String password, String phone, String role) {}
+    public record UserCreateRequest(String name, String email, String password, String phone, String role,LocalDate dob) {}
 
     public IdentityController(UserService userService, ModelMapper modelMapper,UserRepository userRepository) {
         this.userService = userService;
@@ -48,7 +51,8 @@ public class IdentityController {
     
     @DeleteMapping("/users/{userId}")
     public ResponseEntity<Void> deleteUser(@PathVariable Long userId) {
-        userRepository.deleteById(userId);
+        // Call service instead of repo directly
+        userService.deleteUser(userId); 
         return ResponseEntity.noContent().build();
     }
 
@@ -59,14 +63,30 @@ public class IdentityController {
     /**
      * Endpoint changed to PatchMapping to match the Feign Client
      */
-    @PatchMapping("/status/{id}") // Change this from @PutMapping
+    @PatchMapping("/status/{userId}") // Change this from @PutMapping
     public ResponseEntity<UserResponseDTO> updateUserStatus(
-            @PathVariable Long id, 
+    		@PathVariable("userId") Long userId,
             @RequestParam("status") Status status) {
         
-        User updatedUser = userService.updateUserStatus(id, status);
+        User updatedUser = userService.updateUserStatus(userId, status);
         return ResponseEntity.ok(modelMapper.map(updatedUser, UserResponseDTO.class));
     }
+//    
     
+    
+//    
+//    @Override
+//    @Transactional
+//    public User updateUserStatus(Long userId, Status status) {
+//        // 1. Fetch the full user record from DB
+//        User user = userRepository.findById(userId)
+//                .orElseThrow(() -> new RuntimeException("User not found"));
+//
+//        // 2. Update the status
+//        user.setStatus(status);
+//
+//        // 3. Save and return the PERSISTED object (which has the email)
+//        return userRepository.save(user); 
+//    }
     
 }

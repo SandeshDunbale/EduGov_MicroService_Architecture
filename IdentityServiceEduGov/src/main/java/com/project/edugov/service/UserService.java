@@ -47,4 +47,7 @@ public interface UserService {
      * Updates the status of an existing user.
      */
     User updateUserStatus(Long userId, Status newStatus);
-}
+    
+    
+    void deleteUser(Long userId);
+    }

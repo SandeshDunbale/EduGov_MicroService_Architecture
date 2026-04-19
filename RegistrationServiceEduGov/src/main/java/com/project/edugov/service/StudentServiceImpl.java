@@ -43,8 +43,8 @@ public class StudentServiceImpl implements StudentService {
             dto.getPassword(), 
             dto.getName(), 
             "STUDENT",
-            dto.getPhone()
-                    
+            dto.getPhone(),
+            dto.getDob()    
         );
         
         // FIXED: Changed identityService 
@@ -98,13 +98,41 @@ public class StudentServiceImpl implements StudentService {
         Student student = studentRepo.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Student not found ID: " + id));
         
-        student.setStatus(Status.REJECT);
+       student.setStatus(Status.REJECT);
         
         // FIXED: Changed iamClient to identityClient
-        identityClient.updateStatus(student.getUserId(), "REJECT");
+    UserResponseDTO identityData=identityClient.updateStatus(student.getUserId(), "REJECT");
         
-        return convertToResponseDTO(studentRepo.save(student), null);
+   
+       return convertToResponseDTO(studentRepo.save(student), identityData);
     }
+//    
+    
+    
+    
+//    @Override
+//    public StudentResponseDTO declineStudent(Long id) {
+//        // 1. Find the student
+//        Student student = studentRepo.findById(id)
+//                .orElseThrow(() -> new ResourceNotFoundException("Student not found ID: " + id));
+//        
+//        // 2. Update local status
+//        student.setStatus(Status.REJECT);
+//        
+//        // 3. CAPTURE the response from Identity Service
+//        // Ensure IdentityClient.updateStatus returns UserResponseDTO, not void!
+//        UserResponseDTO identityData = identityClient.updateStatus(student.getUserId(), "REJECT");
+//        
+//        // 4. Save the student
+//        Student savedStudent = studentRepo.save(student);
+//        
+//        // 5. Pass identityData instead of null to the converter
+//        return convertToResponseDTO(savedStudent, identityData);
+//    }
+//    
+    
+    
+    
 
     // ... Other methods (get, update, delete) stay the same ...
 
@@ -118,7 +146,7 @@ public class StudentServiceImpl implements StudentService {
     @Override
     public StudentResponseDTO updateStudent(Long id, StudentDTO dto) {
         Student student = studentRepo.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Student not found ID: " + id));
+               .orElseThrow(() -> new ResourceNotFoundException("Student not found ID: " + id));
         
         mapper.map(dto, student);
         return convertToResponseDTO(studentRepo.save(student), null);
@@ -134,39 +162,58 @@ public class StudentServiceImpl implements StudentService {
     
     
     
+    
+        
+       
+
+    
+    
+    
+   
+
     @Override
     @Transactional
     public String deleteStudent(Long id) {
-        // 1. Find the student to get the userId
         Student student = studentRepo.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Student not found ID: " + id));
+                .orElseThrow(() -> new ResourceNotFoundException("Student not found"));
         
-        Long userIdToDelete = student.getUserId();
-
-        try {
-            // 2. Call the Identity Service to delete the User record
-            identityClient.deleteUser(userIdToDelete);
-            log.info("Successfully deleted User ID {} from Identity Service", userIdToDelete);
-        } catch (Exception e) {
-            log.error("Failed to delete user from Identity Service: {}", e.getMessage());
-            // Decide: Do you want to stop the deletion if the Identity Service fails?
-            // throw new RuntimeException("Could not delete user record, student deletion aborted.");
-        }
+        // Call Identity Service first!
+        identityClient.deleteUser(student.getUserId());
         
-        // 3. Delete from your local Student table
+        // Then delete locally
         studentRepo.delete(student);
-        
-        return "Student and associated User record deleted successfully.";
+        return "Deleted successfully";
     }
+    
+    
+    
+    
+    
+    
+//    
 //    @Override
 //    @Transactional
 //    public String deleteStudent(Long id) {
+//        // 1. Find the student to get the userId reference
 //        Student student = studentRepo.findById(id)
-//                .orElseThrow(() -> new ResourceNotFoundException("Student not found with ID: " + id));
+//                .orElseThrow(() -> new ResourceNotFoundException("Student not found ID: " + id));
 //        
+//        Long userIdToDelete = student.getUserId();
+//
+//        // 2. Call Identity Service via Feign to delete the User
+//        try {
+//            identityClient.deleteUser(userIdToDelete);
+//            log.info("Successfully requested deletion of User ID: {}", userIdToDelete);
+//        } catch (Exception e) {
+//            // If Identity Service is down, decide if you want to fail the whole process
+//            log.error("Failed to delete user from Identity Service: {}", e.getMessage());
+//            throw new RuntimeException("External Service Error: Could not delete User credentials.");
+//        }
+//        
+//        // 3. Finally, delete the student from your own database
 //        studentRepo.delete(student);
 //        
-//        return "Student '" + student.getName() + "' (ID: " + id + ") deleted successfully.";
+//        return "Student and associated User record have been permanently removed.";
 //    }
 
     private StudentResponseDTO convertToResponseDTO(Student student, UserResponseDTO iamUser) {
@@ -176,4 +223,9 @@ public class StudentServiceImpl implements StudentService {
         }
         return result;
     }
+
+
+    
+    
+    
 }
