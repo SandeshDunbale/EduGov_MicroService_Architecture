@@ -29,6 +29,7 @@ public class ResearchProjectServiceImpl implements ResearchProjectService {
 	private final GrantApplicationRepository applicationRepository;
 	// DELETE THIS
 	// private final ModelMapperConfig modelMapper;
+	
 
 	// REPLACE IT WITH THIS
 	private final ModelMapper modelMapper;
@@ -90,7 +91,19 @@ public class ResearchProjectServiceImpl implements ResearchProjectService {
 			return new RuntimeException("Project not found with ID: " + projectId);
 		});
 
-		return modelMapper.map(project, ResearchProjectDTO.class);
+		// 1. Keep your exact original mapping logic
+		ResearchProjectDTO responseDTO = modelMapper.map(project, ResearchProjectDTO.class);
+
+		// 2. ONLY ADD THIS TRY-CATCH BLOCK
+		try {
+			FacultyMinimalDTO faculty = facultyClient.getFacultyById(project.getFacultyId());
+			responseDTO.setFaculty(faculty);
+		} catch (Exception e) {
+			log.warn("Could not fetch Faculty details for ID: {}", project.getFacultyId());
+		}
+
+		// 3. Return the updated DTO
+		return responseDTO;
 	}
 
 	@Override
@@ -137,9 +150,23 @@ public class ResearchProjectServiceImpl implements ResearchProjectService {
 		existingProject.setEndDate(details.getEndDate());
 		existingProject.setStatus(ProjectStatus.DRAFT);
 
-		ResearchProject updated = projectRepository.save(existingProject);
-		log.info("Project ID: {} updated successfully and set back to DRAFT", projectId);
+		// ... your existing code above stays exactly the same!
+		
+				ResearchProject updated = projectRepository.save(existingProject);
+				log.info("Project ID: {} updated successfully and set back to DRAFT", projectId);
 
-		return modelMapper.map(updated, ProjectUpdateResponseDTO.class);
+				// 1. Keep your exact original mapping logic
+				ProjectUpdateResponseDTO responseDTO = modelMapper.map(updated, ProjectUpdateResponseDTO.class);
+
+				// 2. ONLY ADD THIS TRY-CATCH BLOCK
+				try {
+					FacultyMinimalDTO faculty = facultyClient.getFacultyById(updated.getFacultyId());
+					responseDTO.setFaculty(faculty);
+				} catch (Exception e) {
+					log.warn("Could not fetch Faculty details for ID: {}", updated.getFacultyId());
+				}
+
+				// 3. Return the updated DTO
+				return responseDTO;
+			}
 	}
-}

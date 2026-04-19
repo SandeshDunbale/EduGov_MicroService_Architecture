@@ -95,7 +95,19 @@ public class GrantServiceImpl implements GrantService {
 //			log.warn("Could not fetch Program Managers from User Service for notifications.");
 //		}
 
-		return modelMapper.map(finalApp, GrantApplicationDTO.class);
+		GrantApplicationDTO responseDTO = modelMapper.map(finalApp, GrantApplicationDTO.class);
+
+		// 2. ONLY ADD THIS TRY-CATCH BLOCK
+		try {
+			// Fetch the rich Faculty details over the network using the saved facultyId
+			FacultyMinimalDTO facultyProfile = facultyClient.getFacultyById(finalApp.getFacultyId());
+			responseDTO.setFaculty(facultyProfile);
+		} catch (Exception e) {
+			log.warn("Could not fetch Faculty details for ID: {}.", finalApp.getFacultyId());
+		}
+
+		// 3. Return the fully populated response
+		return responseDTO;
 	}
 
 	@Override
@@ -187,10 +199,29 @@ public class GrantServiceImpl implements GrantService {
 		}
 	}
 
+//	@Override
+//	public List<GrantApplicationDTO> getPendingApplications() {
+//		return applicationRepository.findByStatus(GrantApplicationStatus.SUBMITTED).stream()
+//				.map(app -> modelMapper.map(app, GrantApplicationDTO.class)).collect(Collectors.toList());
+//	}
 	@Override
 	public List<GrantApplicationDTO> getPendingApplications() {
 		return applicationRepository.findByStatus(GrantApplicationStatus.SUBMITTED).stream()
-				.map(app -> modelMapper.map(app, GrantApplicationDTO.class)).collect(Collectors.toList());
+				.map(app -> {
+					// 1. Keep your exact original mapping logic for each item
+					GrantApplicationDTO dto = modelMapper.map(app, GrantApplicationDTO.class);
+					
+					// 2. ONLY ADD THIS TRY-CATCH BLOCK
+					try {
+						FacultyMinimalDTO facultyProfile = facultyClient.getFacultyById(app.getFacultyId());
+						dto.setFaculty(facultyProfile);
+					} catch (Exception e) {
+						log.warn("Could not fetch Faculty details for ID: {}. ", app.getFacultyId());
+					}
+					
+					// 3. Return the enriched DTO to the stream
+					return dto;
+				}).collect(Collectors.toList());
 	}
 
 	@Override
@@ -220,6 +251,20 @@ public class GrantServiceImpl implements GrantService {
 	@Override
 	public List<GrantApplicationDTO> getApplicationHistoryByFaculty(Long facultyId) {
 		return applicationRepository.findByFacultyId(facultyId).stream()
-				.map(app -> modelMapper.map(app, GrantApplicationDTO.class)).collect(Collectors.toList());
+				.map(app -> {
+					// 1. Keep your exact original mapping logic for each item
+					GrantApplicationDTO dto = modelMapper.map(app, GrantApplicationDTO.class);
+					
+					// 2. ONLY ADD THIS TRY-CATCH BLOCK
+					try {
+						FacultyMinimalDTO facultyProfile = facultyClient.getFacultyById(app.getFacultyId());
+						dto.setFaculty(facultyProfile);
+					} catch (Exception e) {
+						log.warn("Could not fetch Faculty details for ID: {}.", app.getFacultyId());
+					}
+					
+					// 3. Return the enriched DTO to the stream
+					return dto;
+				}).collect(Collectors.toList());
 	}
 }
