@@ -36,11 +36,124 @@ public class GatewayConfig {
     @Bean
     public RouteLocator customRouteLocator(RouteLocatorBuilder builder) {
         return builder.routes()
-
-                // ----------------------------------------------------
-                // 1. STRICTEST RULES FIRST: Admin Only Actions
-                // ----------------------------------------------------
-                // Only UNIV_ADMIN can PATCH (update) a user's status
+        		
+        		
+        		
+////        		// 1. PUBLIC ROUTE: Allow anyone to Register or Login
+////                .route("public-auth", r -> r
+////                        .path("/api/identity/register", "/api/auth/**") // Add your register path here
+////                        .uri("lb://IDENTITYSERVICEEDUGOV")) // Notice: NO .filters(authFilter) here!
+////        		
+////        		
+////        		 .route("registration-service-route", r -> r
+//// 	                    .path("/students/**", "/faculty/**") 
+//// 	                    .uri("lb://REGISTRATIONSERVICEEDUGOV")) 
+////
+////                // ----------------------------------------------------
+////                // 1. STRICTEST RULES FIRST: Admin Only Actions
+////                // ----------------------------------------------------
+////                // Only UNIV_ADMIN can PATCH (update) a user's status
+////                .route("identity-admin-update", r -> r
+////                        .path("/api/users/status/**")
+////                        .and().method("PATCH")
+////                        .filters(f -> {
+////                            AuthenticationFilter.Config config = new AuthenticationFilter.Config();
+////                            config.setAllowedRoles(List.of("UNIV_ADMIN"));
+////                            return f.filter(authFilter.apply(config));
+////                        })
+////                        .uri("lb://IDENTITYSERVICEEDUGOV"))
+////
+////                // ----------------------------------------------------
+////                // 2. MID-LEVEL RULES: Admin & Manager Views
+////                // ----------------------------------------------------
+////                // UNIV_ADMIN and PROG_MANAGER can GET users by role or status
+////                .route("identity-manager-view", r -> r
+////                        .path("/api/users/role/**", "/api/users/status/**")
+////                        .and().method("GET")
+////                        .filters(f -> {
+////                            AuthenticationFilter.Config config = new AuthenticationFilter.Config();
+////                            config.setAllowedRoles(List.of("UNIV_ADMIN", "PROG_MANAGER"));
+////                            return f.filter(authFilter.apply(config));
+////                        })
+////                        .uri("lb://IDENTITYSERVICEEDUGOV"))
+////
+////                // ----------------------------------------------------
+////                // 3. GENERAL RULES: Catch-all for Identity Service
+////                // ----------------------------------------------------
+////                // Everything else (Login, Reset Password, Get User By ID) 
+////                // falls down to this generic route. No specific roles required.
+////                .route("identity-general", r -> r
+////                        .path("/api/auth/**", "/api/users/**")
+////                        .filters(f -> f.filter(authFilter.apply(new AuthenticationFilter.Config())))
+////                        .uri("lb://IDENTITYSERVICEEDUGOV"))
+////                
+//////                .route("identity-service-route", r -> r
+//////	                    .path("/api/auth/**", "/api/users/**", "/api/identity/**") 
+//////	                    .uri("lb://IDENTITYSERVICEEDUGOV"))
+//////	            
+////	            // NEW: Route for Registration Service
+//////	            .route("registration-service-route", r -> r
+//////	                    .path("/students/**", "/faculty/**") 
+//////	                    .uri("lb://REGISTRATIONSERVICEEDUGOV")) // Use the ID from Eureka
+////                .build();
+//        		
+//        		
+//        		
+//        		// 1. PUBLIC ROUTE: The "Open Door"
+//                .route("public-auth", r -> r
+//                        .path("/api/identity/register", "/api/auth/**") 
+//                        .uri("lb://IDENTITYSERVICEEDUGOV")) 
+//                
+//                // 2. REGISTRATION SERVICE
+//                .route("registration-service-route", r -> r
+//                        .path("/students/**", "/faculty/**") 
+//                        .uri("lb://REGISTRATIONSERVICEEDUGOV")) 
+//
+//                // 3. ADMIN ONLY (PATCH Status)
+//                .route("identity-admin-update", r -> r
+//                        .path("/api/users/status/**")
+//                        .and().method("PATCH")
+//                        .filters(f -> {
+//                            AuthenticationFilter.Config config = new AuthenticationFilter.Config();
+//                            config.setAllowedRoles(List.of("UNIV_ADMIN"));
+//                            return f.filter(authFilter.apply(config));
+//                        })
+//                        .uri("lb://IDENTITYSERVICEEDUGOV"))
+//
+//                // 4. ADMIN & MANAGER (GET Views)
+//                .route("identity-manager-view", r -> r
+//                        .path("/api/users/role/**", "/api/users/status/**")
+//                        .and().method("GET")
+//                        .filters(f -> {
+//                            AuthenticationFilter.Config config = new AuthenticationFilter.Config();
+//                            config.setAllowedRoles(List.of("UNIV_ADMIN", "PROG_MANAGER"));
+//                            return f.filter(authFilter.apply(config));
+//                        })
+//                        .uri("lb://IDENTITYSERVICEEDUGOV"))
+//
+//                // 5. GENERAL PROTECTED (Removed /api/auth/** from here)
+//                // This now only protects general user data access.
+//                .route("identity-general", r -> r
+//                        .path("/api/users/**") // Removed /api/auth/** because it's public!
+//                        .filters(f -> f.filter(authFilter.apply(new AuthenticationFilter.Config())))
+//                        .uri("lb://IDENTITYSERVICEEDUGOV"))
+//
+//                .build();
+//        		
+//        		
+        		
+        		
+        		.route("public-auth", r -> r
+                        .path("/api/identity/register", "/api/auth/**") 
+                        .uri("lb://IDENTITYSERVICEEDUGOV"))
+        		
+        		
+        		.route("registration-service-route", r -> r
+	                    .path("/students/**", "/faculty/**") 
+	                    .uri("lb://REGISTRATIONSERVICEEDUGOV")) // Use the ID from Eureka
+        		
+        		
+        		 // Only UNIV_ADMIN can PATCH (update) a user's status
                 .route("identity-admin-update", r -> r
                         .path("/api/users/status/**")
                         .and().method("PATCH")
@@ -80,6 +193,7 @@ public class GatewayConfig {
 	                    .uri("lb://IDENTITYSERVICEEDUGOV"))
 	            
 	            // NEW: Route for Registration Service
+
 	            .route("registration-service-route", r -> r
 	                    .path("/students/**", "/faculty/**") 
 	                    .uri("lb://REGISTRATIONSERVICEEDUGOV")) // Use the ID from Eureka
@@ -89,6 +203,12 @@ public class GatewayConfig {
                         // Assuming you want basic token validation for these endpoints:
                         .filters(f -> f.filter(authFilter.apply(new AuthenticationFilter.Config())))
                         .uri("lb://RESEARCHANDGRANTSERVICEEDUGOV"))
-                .build();
+
+//	            .route("registration-service-route", r -> r
+//	                    .path("/students/**", "/faculty/**") 
+//	                    .uri("lb://REGISTRATIONSERVICEEDUGOV")) // Use the ID from Eureka
+
+                .build(); 		
+        		
     }
 }
