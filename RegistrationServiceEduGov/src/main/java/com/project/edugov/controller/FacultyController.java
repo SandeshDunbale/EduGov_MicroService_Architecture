@@ -26,13 +26,14 @@ public class FacultyController {
         return new ResponseEntity<>(facultyService.registerFaculty(dto), HttpStatus.CREATED);
     }
 
-    // 2. Get Faculty by Local ID
-    @GetMapping("/{id}")
+ // In FacultyController
+    @GetMapping("/{id}") // This makes the full path /faculty/{id}
     public ResponseEntity<FacultyResponseDTO> getById(@PathVariable Long id) {
         return facultyService.getFacultyById(id)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
+   
 
     // 3. Get all Faculties by Status (PENDING, APPROVED, REJECTED)
     @GetMapping("/status/{status}")

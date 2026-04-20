@@ -25,5 +25,5 @@ public class Faculty {
     private String department;
 
     @Enumerated(EnumType.STRING)
-    private Status status = Status.PENDING;
+    private Status status;
 }
