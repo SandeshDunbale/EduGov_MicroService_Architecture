@@ -25,56 +25,30 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class EnrollmentController {
 
-	@Autowired
-	private EnrollmentService enrollmentService;
+    @Autowired
+    private EnrollmentService enrollmentService;
 
-	/**
-	 * Student apply for a course. Expected JSON Body: { "studentId": 1, "courseId":
-	 * 5 }
-	 */
-	@PostMapping("/apply")
-	public ResponseEntity<EnrollmentResponseDTO> apply(@RequestBody Map<String, Long> request) {
-		Long studentId = request.get("studentId");
-		Long courseId = request.get("courseId");
+    @PostMapping("/apply")
+    public ResponseEntity<EnrollmentResponseDTO> apply(@RequestBody Map<String, Long> request) {
+        return new ResponseEntity<>(enrollmentService.applyForCourse(
+                request.get("studentId"), request.get("courseId")), HttpStatus.CREATED);
+    }
 
-		log.info("REST Request: Student ID {} applying for Course ID {}", studentId, courseId);
+    @PutMapping("/update/{eId}/admin/{aId}/status/{status}")
+    public ResponseEntity<EnrollmentResponseDTO> updateEnrollment(
+            @PathVariable Long eId, @PathVariable Long aId, @PathVariable String status) {
+        
+        Status enrollmentStatus = Status.valueOf(status.toUpperCase());
+        return ResponseEntity.ok(enrollmentService.updateEnrollmentStatus(eId, aId, enrollmentStatus));
+    }
 
-		EnrollmentResponseDTO response = enrollmentService.applyForCourse(studentId, courseId);
-		return new ResponseEntity<>(response, HttpStatus.CREATED);
-	}
+    @GetMapping("/status/{status}")
+    public ResponseEntity<List<EnrollmentResponseDTO>> getByStatus(@PathVariable String status) {
+        return ResponseEntity.ok(enrollmentService.getEnrollmentsByStatus(Status.valueOf(status.toUpperCase())));
+    }
 
-	/**
-	 * Admin updates enrollment status (Approved/Rejected). Path:
-	 * /enrollments/update/1/admin/10/status/APPROVED
-	 */
-	@PutMapping("/update/{eId}/admin/{aId}/status/{status}")
-	public ResponseEntity<EnrollmentResponseDTO> updateEnrollment(@PathVariable Long eId, @PathVariable Long aId,
-			@PathVariable Status status) {
-
-		log.info("REST Request: Admin {} updating Enrollment {} status to {}", aId, eId, status);
-
-		EnrollmentResponseDTO response = enrollmentService.updateEnrollmentStatus(eId, aId, status);
-		return ResponseEntity.ok(response);
-	}
-
-	/**
-	 * Filter enrollments by status (PENDING, APPROVED, REJECTED).
-	 */
-	@GetMapping("/status/{status}")
-	public ResponseEntity<List<EnrollmentResponseDTO>> getByStatus(@PathVariable Status status) {
-		log.info("REST Request: Fetching enrollments with status: {}", status);
-		return ResponseEntity.ok(enrollmentService.getEnrollmentsByStatus(status));
-	}
-
-	/**
-	 * Fetch all enrollment records.
-	 */
-	@GetMapping("/all")
-	public ResponseEntity<List<EnrollmentResponseDTO>> getAll() {
-
-		 log.error("💥 HIT /enrollments/all on instance running at port: {}", 
-		              System.getProperty("server.port"));
-log.info("REST Request: Fetching all enrollment records");
-		return ResponseEntity.ok(enrollmentService.getAllEnrollments());
-	}
+    @GetMapping("/all")
+    public ResponseEntity<List<EnrollmentResponseDTO>> getAll() {
+        return ResponseEntity.ok(enrollmentService.getAllEnrollments());
+    }
 }

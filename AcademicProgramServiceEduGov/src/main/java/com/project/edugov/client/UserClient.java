@@ -9,13 +9,8 @@ import com.project.edugov.dto.UserFeignDTO;
 /**
  * Feign Client to communicate with the IDENTITY-SERVICE (UserController).
  */
-@FeignClient(name = "IDENTITYSERVICEEDUGOV")
+@FeignClient(name = "IDENTITYSERVICEEDUGOV", url = "http://localhost:8006") 
 public interface UserClient {
-
-	/**
-	 * Calls: GET http://IDENTITY-SERVICE/api/users/{id} This matches your
-	 * UserController @GetMapping("/{id}")
-	 */
-	@GetMapping("/api/users/{id}")
-	UserFeignDTO getUserById(@PathVariable("id") Long id);
+    @GetMapping("/api/users/{id}")
+    UserFeignDTO getUserById(@PathVariable("id") Long id);
 }

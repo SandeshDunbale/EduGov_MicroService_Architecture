@@ -9,7 +9,7 @@ import com.project.edugov.dto.StudentFeignDTO;
 /**
  * Feign Client to communicate with the STUDENT-SERVICE (StudentController).
  */
-@FeignClient(name = "STUDENT-SERVICE")
+@FeignClient(name = "REGISTRATIONSERVICEEDUGOV", contextId = "studentClient")
 public interface StudentClient {
 
 	/**

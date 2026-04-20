@@ -1,6 +1,7 @@
 package com.project.edugov;
 
 import org.modelmapper.ModelMapper;
+import org.modelmapper.convention.MatchingStrategies;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
@@ -19,8 +20,11 @@ public class AcademicProgramServiceEduGovApplication {
 	
 	@Bean
     public ModelMapper modelMapper() {
-        return new ModelMapper();
+        ModelMapper modelMapper = new ModelMapper();
+        // Sets strategy to STRICT to avoid 'courseId' matching multiple sources
+        modelMapper.getConfiguration()
+                   .setMatchingStrategy(MatchingStrategies.STRICT);
+        return modelMapper;
     }
-
 
 }

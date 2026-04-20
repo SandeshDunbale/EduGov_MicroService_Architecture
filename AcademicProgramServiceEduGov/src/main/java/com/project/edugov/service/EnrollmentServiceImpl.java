@@ -9,9 +9,11 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
-import com.project.edugov.client.StudentClient; // For Student Info
-import com.project.edugov.client.UserClient;    // For Admin Info
+import com.project.edugov.client.FacultyClient; // New Client
+import com.project.edugov.client.StudentClient;
+import com.project.edugov.client.UserClient;    // Still used for Admin
 import com.project.edugov.dto.EnrollmentResponseDTO;
+import com.project.edugov.dto.FacultyFeignDTO; // New DTO
 import com.project.edugov.dto.StudentFeignDTO;
 import com.project.edugov.dto.UserFeignDTO;
 import com.project.edugov.exception.APIException;
@@ -36,21 +38,22 @@ public class EnrollmentServiceImpl implements EnrollmentService {
     private CourseRepository courseRepo;
 
     @Autowired
-    private StudentClient studentClient; // Replaces StudentRepository
+    private StudentClient studentClient;
 
     @Autowired
-    private UserClient userClient;       // Replaces UserRepository
+    private FacultyClient facultyClient; // Updated
+
+    @Autowired
+    private UserClient userClient;
 
     @Autowired
     private ModelMapper modelMapper;
 
-    /**
-     * Helper: Stitches together local Enrollment data with remote Student/Admin info.
-     */
     private EnrollmentResponseDTO mapToCustomDto(Enrollment e) {
         EnrollmentResponseDTO dto = modelMapper.map(e, EnrollmentResponseDTO.class);
+        dto.setEnrollmentDate(e.getDate());
 
-        // 1. Fetch Student Info from STUDENT-SERVICE
+        // 1. Fetch from Student Table
         try {
             StudentFeignDTO student = studentClient.getStudentById(e.getStudentId());
             if (student != null) {
@@ -58,106 +61,99 @@ public class EnrollmentServiceImpl implements EnrollmentService {
                 dto.setStudentEmail(student.getEmail());
             }
         } catch (Exception ex) {
-            log.error("Student Service unavailable for ID: {}", e.getStudentId());
-            dto.setStudentName("Information Unavailable");
+            log.error("Student not found in Student table for ID: {}", e.getStudentId());
+            dto.setStudentName("Student Not Found");
         }
 
-        // 2. Map Local Course & Faculty Info
+        // 2. Fetch from Faculty Table
         if (e.getCourse() != null) {
             dto.setCourseId(e.getCourse().getCourseId());
             dto.setCourseTitle(e.getCourse().getTitle());
-            // Faculty ID is stored in the course entity
-            dto.setFacultyId(e.getCourse().getFacultyId()); 
+            
+            Long fId = e.getCourse().getFacultyId();
+            dto.setFacultyId(fId);
+
+            if (fId != null) {
+                try {
+                    // Fetching specifically from the Faculty table/client
+                    FacultyFeignDTO faculty = facultyClient.getFacultyById(fId);
+                    if (faculty != null) {
+                        dto.setFacultyName(faculty.getName());
+                    }
+                } catch (Exception ex) {
+                    log.error("Faculty not found in Faculty table for ID: {}", fId);
+                    dto.setFacultyName("Faculty Not Found");
+                }
+            }
         }
 
-        // 3. Fetch Admin Info from IDENTITY-SERVICE (if approved)
+        // 3. Fetch Admin from User Table (Identity Service)
         if (e.getApprovedByAdminId() != null) {
             try {
                 UserFeignDTO admin = userClient.getUserById(e.getApprovedByAdminId());
                 if (admin != null) {
-                    dto.setApprovedByAdminId(admin.getUserId());
                     dto.setApprovedByAdminName(admin.getName());
                 }
             } catch (Exception ex) {
-                log.error("Identity Service unavailable for Admin ID: {}", e.getApprovedByAdminId());
+                log.error("Admin not found in User table for ID: {}", e.getApprovedByAdminId());
             }
         }
-
-        dto.setEnrollmentDate(e.getDate());
+        
         return dto;
     }
 
     @Override
     public EnrollmentResponseDTO applyForCourse(Long sId, Long cId) {
-        log.info("Process: New Enrollment Request. Student: {} -> Course: {}", sId, cId);
-
-        // 1. Verify Student via StudentClient
-        StudentFeignDTO student = studentClient.getStudentById(sId);
-        if (student == null) {
-            throw new ResourceNotFoundException("Enrollment failed: Student not found with ID: " + sId);
+        // Validation: Verify student exists in student table
+        if (studentClient.getStudentById(sId) == null) {
+            throw new ResourceNotFoundException("Cannot apply: Student ID " + sId + " does not exist.");
         }
 
-        // 2. Verify Course locally
         Course course = courseRepo.findById(cId)
-                .orElseThrow(() -> new ResourceNotFoundException("Course not found with ID: " + cId));
+                .orElseThrow(() -> new ResourceNotFoundException("Course not found."));
 
-        // 3. Validation: Active Status
         if (course.getStatus() != Status.ACTIVE) {
-            throw new APIException(HttpStatus.BAD_REQUEST, "Cannot enroll: Course is currently " + course.getStatus());
-        }
-        
-        if (course.getProgram() != null && course.getProgram().getStatus() != Status.ACTIVE) {
-            throw new APIException(HttpStatus.BAD_REQUEST, "Cannot enroll: Parent Program is INACTIVE.");
+            throw new APIException(HttpStatus.BAD_REQUEST, "Course is not active.");
         }
 
-        // 4. Duplicate Check
         if (enrollmentRepo.existsByStudentIdAndCourse_CourseId(sId, cId)) {
-            throw new APIException(HttpStatus.BAD_REQUEST, "Student is already enrolled in this course.");
+            throw new APIException(HttpStatus.BAD_REQUEST, "Duplicate enrollment.");
         }
 
-        // 5. Create Enrollment
         Enrollment enrollment = new Enrollment();
         enrollment.setStudentId(sId);
         enrollment.setCourse(course);
         enrollment.setStatus(Status.PENDING);
         enrollment.setDate(LocalDateTime.now());
 
-        log.info("Enrollment saved for course: {}", course.getTitle());
         return mapToCustomDto(enrollmentRepo.save(enrollment));
     }
 
     @Override
-    public EnrollmentResponseDTO updateEnrollmentStatus(Long enrollmentId, Long adminId, Status newStatus) {
-        log.info("Admin {} is updating Enrollment {} to {}", adminId, enrollmentId, newStatus);
-
-        // 1. Verify Enrollment
-        Enrollment enrollment = enrollmentRepo.findById(enrollmentId)
+    public EnrollmentResponseDTO updateEnrollmentStatus(Long eId, Long aId, Status status) {
+        Enrollment enrollment = enrollmentRepo.findById(eId)
                 .orElseThrow(() -> new ResourceNotFoundException("Enrollment not found."));
 
-        // 2. Verify Admin via UserClient
-        UserFeignDTO admin = userClient.getUserById(adminId);
+        // Admins are still verified against the User/Identity table
+        UserFeignDTO admin = userClient.getUserById(aId);
         if (admin == null || !Role.UNIV_ADMIN.equals(admin.getRole())) {
-            throw new APIException(HttpStatus.FORBIDDEN, "Access Denied: Only University Admins can update status.");
+            throw new APIException(HttpStatus.FORBIDDEN, "Only University Admins can update status.");
         }
 
-        // 3. Update Status and Approver
-        enrollment.setStatus(newStatus);
-        enrollment.setApprovedByAdminId(adminId);
-
+        enrollment.setStatus(status);
+        enrollment.setApprovedByAdminId(aId);
         return mapToCustomDto(enrollmentRepo.save(enrollment));
     }
 
     @Override
     public List<EnrollmentResponseDTO> getEnrollmentsByStatus(Status status) {
         return enrollmentRepo.findByStatus(status).stream()
-                .map(this::mapToCustomDto)
-                .collect(Collectors.toList());
+                .map(this::mapToCustomDto).collect(Collectors.toList());
     }
 
     @Override
     public List<EnrollmentResponseDTO> getAllEnrollments() {
         return enrollmentRepo.findAll().stream()
-                .map(this::mapToCustomDto)
-                .collect(Collectors.toList());
+                .map(this::mapToCustomDto).collect(Collectors.toList());
     }
 }

@@ -9,7 +9,7 @@ import com.project.edugov.dto.FacultyFeignDTO;
 /**
  * Feign Client to communicate with the FACULTY-SERVICE (FacultyController).
  */
-@FeignClient(name = "FACULTY-SERVICE")
+@FeignClient(name = "REGISTRATIONSERVICEEDUGOV", contextId = "facultyClient")
 public interface FacultyClient {
 
 	/**

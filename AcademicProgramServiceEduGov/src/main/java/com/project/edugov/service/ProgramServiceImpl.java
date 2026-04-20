@@ -65,10 +65,9 @@ public class ProgramServiceImpl implements ProgramService {
         try {
             admin = userClient.getUserById(adminId);
         } catch (Exception e) {
-            log.error("Feign call failed: Identity Service is down.");
-            throw new APIException(HttpStatus.SERVICE_UNAVAILABLE, "Identity Service is down. Cannot verify Admin.");
+            log.error("ACTUAL FEIGN ERROR: ", e); // This will tell you if it's a 404, 403, or a Connection Timeout
+            throw new APIException(HttpStatus.SERVICE_UNAVAILABLE, "Details: " + e.getMessage());
         }
-
         if (admin == null) {
             throw new ResourceNotFoundException("Admin not found with ID: " + adminId);
         }
