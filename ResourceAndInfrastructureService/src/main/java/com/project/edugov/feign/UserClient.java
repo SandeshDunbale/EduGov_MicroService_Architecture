@@ -14,4 +14,7 @@ public interface UserClient {
 
     @GetMapping("/{userId}")
     UserDTO getUserById(@PathVariable Long userId);
+    
+    @GetMapping("/{userId}/active")
+    Boolean isUserActive(@PathVariable("userId") Long userId);
 }

@@ -14,4 +14,7 @@ public interface ProgramClient {
 
     @GetMapping("/{programId}")
     ProgramDTO getProgramById(@PathVariable Long programId);
+    
+    @GetMapping("/{programId}/active")
+    Boolean isProgramActive(@PathVariable("programId") Long programId);
 }

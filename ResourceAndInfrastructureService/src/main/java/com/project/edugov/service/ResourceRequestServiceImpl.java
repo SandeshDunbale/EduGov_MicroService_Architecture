@@ -11,6 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.project.edugov.dto.UserDTO;
 import com.project.edugov.feign.UserClient;
+import com.project.edugov.exception.RoleMismatchException;
 import com.project.edugov.model.*;
 import com.project.edugov.repository.*;
 
@@ -22,8 +23,18 @@ public class ResourceRequestServiceImpl implements ResourceRequestService {
     private final ResourceRequestRepository requestRepo;
     private final ResourceRepository resourceRepo;
     private final InfrastructureRepository infraRepo;
+
+    /*
+     * ❌ MONOLITHIC SERVICES (COMMENTED FOR MICROSERVICE)
+     *
+     * private final NotificationService notificationService;
+     * private final AuditService auditService;
+     */
+
     private final ResourceService resourceService;
     private final InfrastructureService infrastructureService;
+
+    // ✅ MICROservice dependency
     private final UserClient userClient;
 
     public ResourceRequestServiceImpl(
@@ -33,6 +44,7 @@ public class ResourceRequestServiceImpl implements ResourceRequestService {
             ResourceService resourceService,
             InfrastructureService infrastructureService,
             UserClient userClient
+            /* NotificationService notificationService */
     ) {
         this.requestRepo = requestRepo;
         this.resourceRepo = resourceRepo;
@@ -40,43 +52,54 @@ public class ResourceRequestServiceImpl implements ResourceRequestService {
         this.resourceService = resourceService;
         this.infrastructureService = infrastructureService;
         this.userClient = userClient;
-        log.info("✅ ResourceRequestServiceImpl initialized");
+        // this.notificationService = notificationService;
+
+        log.info("ResourceRequestServiceImpl initialized");
     }
 
-    // =====================================================
-    // ROLE VALIDATION (via User Service)
-    // =====================================================
+    // ----------------------------------------------------
+    // ROLE VALIDATION LOGIC (STUDENT → RESOURCE, FACULTY → INFRA)
+    // ----------------------------------------------------
     private void validateRole(Long userId, RequestItemType type) {
 
-        UserDTO user = userClient.getUserById(userId);
+        UserDTO requester = userClient.getUserById(userId);
 
-        if (type == RequestItemType.RESOURCE && !"STUDENT".equals(user.role())) {
-            throw new IllegalStateException("Only STUDENT can submit RESOURCE requests");
+        if (type == RequestItemType.RESOURCE &&
+            !"STUDENT".equals(requester.role())) {
+            throw new RoleMismatchException(
+                    "Only STUDENT can submit RESOURCE requests.");
         }
 
-        if (type == RequestItemType.INFRASTRUCTURE && !"FACULTY".equals(user.role())) {
-            throw new IllegalStateException("Only FACULTY can submit INFRASTRUCTURE requests");
+        if (type == RequestItemType.INFRASTRUCTURE &&
+            !"FACULTY".equals(requester.role())) {
+            throw new RoleMismatchException(
+                    "Only FACULTY can submit INFRASTRUCTURE requests.");
         }
     }
 
-    // =====================================================
+    // ----------------------------------------------------
     // SUBMIT RESOURCE REQUEST
-    // =====================================================
+    // ----------------------------------------------------
     @Override
     public ResourceRequest submitResourceRequest(
             Long requesterUserId,
             Long resourceId,
             int quantity) {
 
+        log.info("Submitting Resource Request → requesterId={}, resourceId={}, qty={}",
+                requesterUserId, resourceId, quantity);
+
         if (quantity <= 0) {
-            throw new IllegalArgumentException("Quantity must be > 0");
+            throw new IllegalArgumentException(
+                    "Quantity must be > 0.");
         }
 
         validateRole(requesterUserId, RequestItemType.RESOURCE);
 
         Resource resource = resourceRepo.findById(resourceId)
                 .orElseThrow(() ->
-                        new EntityNotFoundException("Resource not found: " + resourceId));
+                        new EntityNotFoundException(
+                                "Resource not found: " + resourceId));
 
         ResourceRequest rr = ResourceRequest.builder()
                 .requesterUserId(requesterUserId)
@@ -86,12 +109,22 @@ public class ResourceRequestServiceImpl implements ResourceRequestService {
                 .status(RequestStatus.SUBMITTED)
                 .build();
 
-        return requestRepo.save(rr);
+        ResourceRequest saved = requestRepo.save(rr);
+
+        /*
+         * ❌ MONOLITHIC NOTIFICATION (COMMENTED)
+         *
+         * String message = requester.getName()
+         *         + " submitted a RESOURCE request.";
+         * notifyProgramManagers(saved.getRequestId(), message);
+         */
+
+        return saved;
     }
 
-    // =====================================================
+    // ----------------------------------------------------
     // SUBMIT INFRASTRUCTURE REQUEST
-    // =====================================================
+    // ----------------------------------------------------
     @Override
     public ResourceRequest submitInfrastructureRequest(
             Long requesterUserId,
@@ -101,7 +134,8 @@ public class ResourceRequestServiceImpl implements ResourceRequestService {
 
         Infrastructure infra = infraRepo.findById(infraId)
                 .orElseThrow(() ->
-                        new EntityNotFoundException("Infrastructure not found: " + infraId));
+                        new EntityNotFoundException(
+                                "Infrastructure not found: " + infraId));
 
         ResourceRequest rr = ResourceRequest.builder()
                 .requesterUserId(requesterUserId)
@@ -110,73 +144,82 @@ public class ResourceRequestServiceImpl implements ResourceRequestService {
                 .status(RequestStatus.SUBMITTED)
                 .build();
 
-        return requestRepo.save(rr);
+        ResourceRequest saved = requestRepo.save(rr);
+
+        /*
+         * ❌ MONOLITHIC NOTIFICATION (COMMENTED)
+         *
+         * String message = requester.getName()
+         *         + " submitted an INFRASTRUCTURE request.";
+         * notifyProgramManagers(saved.getRequestId(), message);
+         */
+
+        return saved;
     }
 
-    // =====================================================
-    // MARK IN REVIEW
-    // =====================================================
-    @Override
-    public ResourceRequest markInReview(
-            Long requestId,
-            Long reviewerUserId) {
+    // ----------------------------------------------------
+    // SEND NOTIFICATION TO PROGRAM MANAGERS (MONOLITHIC)
+    // ----------------------------------------------------
+    /*
+    private void notifyProgramManagers(Long reqId, String message) {
 
-        userClient.getUserById(reviewerUserId); // validate exists
+        List<User> managers = userRepo.findByRole(Role.PROG_MANAGER);
 
-        ResourceRequest rr = getById(requestId);
-
-        if (rr.getStatus() != RequestStatus.SUBMITTED) {
-            throw new IllegalStateException("Only SUBMITTED requests can be reviewed");
+        for (User pm : managers) {
+            notificationService.createNotification(
+                    pm.getUserId(),
+                    reqId,
+                    message,
+                    "REQUEST",
+                    pm.getEmail()
+            );
         }
-
-        rr.setStatus(RequestStatus.IN_REVIEW);
-        rr.setApprovedByUserId(reviewerUserId);
-        rr.setDecisionAt(Instant.now());
-
-        return requestRepo.save(rr);
     }
+    */
 
-    // =====================================================
-    // APPROVE
-    // =====================================================
+    // ----------------------------------------------------
+    // APPROVE REQUEST
+    // ----------------------------------------------------
     @Override
-    public ResourceRequest approve(Long requestId, Long approverUserId) {
+    public ResourceRequest approve(
+            Long requestId,
+            Long approverUserId) {
 
         userClient.getUserById(approverUserId);
 
         ResourceRequest rr = getById(requestId);
 
-        if (rr.getStatus() != RequestStatus.IN_REVIEW &&
-            rr.getStatus() != RequestStatus.SUBMITTED) {
-            return rr;
-        }
-
         if (rr.getItemType() == RequestItemType.RESOURCE) {
             resourceService.allocate(
                     rr.getResource().getResourceId(),
-                    rr.getQuantity()
-            );
+                    rr.getQuantity());
         } else {
             infrastructureService.markInUse(
-                    rr.getInfrastructure().getInfraId()
-            );
+                    rr.getInfrastructure().getInfraId());
         }
 
         rr.setStatus(RequestStatus.APPROVED);
         rr.setApprovedByUserId(approverUserId);
         rr.setDecisionAt(Instant.now());
 
+        /*
+         * ❌ MONOLITHIC NOTIFICATION + AUDIT (COMMENTED)
+         *
+         * notificationService.createNotification(...)
+         * auditService.logAction(...)
+         */
+
         return requestRepo.save(rr);
     }
 
-    // =====================================================
-    // DECLINE
-    // =====================================================
+    // ----------------------------------------------------
+    // DECLINE REQUEST
+    // ----------------------------------------------------
     @Override
     public ResourceRequest decline(
             Long requestId,
             Long approverUserId,
-            String reasonOptional) {
+            String reason) {
 
         userClient.getUserById(approverUserId);
 
@@ -186,12 +229,18 @@ public class ResourceRequestServiceImpl implements ResourceRequestService {
         rr.setApprovedByUserId(approverUserId);
         rr.setDecisionAt(Instant.now());
 
+        /*
+         * ❌ MONOLITHIC NOTIFICATION (COMMENTED)
+         *
+         * notificationService.createNotification(...)
+         */
+
         return requestRepo.save(rr);
     }
 
-    // =====================================================
-    // QUERY METHODS
-    // =====================================================
+    // ----------------------------------------------------
+    // LIST / GET
+    // ----------------------------------------------------
     @Override
     @Transactional(readOnly = true)
     public List<ResourceRequest> listByStatus(RequestStatus status) {
@@ -209,6 +258,36 @@ public class ResourceRequestServiceImpl implements ResourceRequestService {
     public ResourceRequest getById(Long requestId) {
         return requestRepo.findById(requestId)
                 .orElseThrow(() ->
-                        new EntityNotFoundException("Request not found: " + requestId));
+                        new EntityNotFoundException(
+                                "Request not found"));
+    }
+
+    // ----------------------------------------------------
+    // MARK IN REVIEW
+    // ----------------------------------------------------
+    @Override
+    public ResourceRequest markInReview(
+            Long requestId,
+            Long reviewerUserId) {
+
+        userClient.getUserById(reviewerUserId);
+
+        ResourceRequest rr = getById(requestId);
+
+        rr.setStatus(RequestStatus.IN_REVIEW);
+        rr.setApprovedByUserId(reviewerUserId);
+        rr.setDecisionAt(Instant.now());
+
+        /*
+         * ❌ MONOLITHIC AUDIT (COMMENTED)
+         *
+         * auditService.logAction(
+         *     reviewerUserId,
+         *     "REQUEST_IN_REVIEW",
+         *     requestId
+         * );
+         */
+
+        return requestRepo.save(rr);
     }
 }
