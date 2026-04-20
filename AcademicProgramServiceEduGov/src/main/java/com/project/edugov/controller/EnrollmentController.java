@@ -71,7 +71,10 @@ public class EnrollmentController {
 	 */
 	@GetMapping("/all")
 	public ResponseEntity<List<EnrollmentResponseDTO>> getAll() {
-		log.info("REST Request: Fetching all enrollment records");
+
+		 log.error("💥 HIT /enrollments/all on instance running at port: {}", 
+		              System.getProperty("server.port"));
+log.info("REST Request: Fetching all enrollment records");
 		return ResponseEntity.ok(enrollmentService.getAllEnrollments());
 	}
 }
