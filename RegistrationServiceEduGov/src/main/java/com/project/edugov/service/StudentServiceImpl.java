@@ -87,10 +87,10 @@ public class StudentServiceImpl implements StudentService {
         log.info("Approving Student ID: {} with Identity User ID: {}", id, student.getUserId());
         
         // This sends "APPROVE" as a parameter, NOT as part of the URL path
-        identityClient.updateStatus(student.getUserId(), "APPROVE"); 
+        UserResponseDTO identityData =identityClient.updateStatus(student.getUserId(), "APPROVE"); 
         
-        student.setStatus(Status.APPROVE);
-        return convertToResponseDTO(studentRepo.save(student), null);
+       student.setStatus(Status.APPROVE);
+        return convertToResponseDTO(studentRepo.save(student), identityData);
     }
 
     @Override
