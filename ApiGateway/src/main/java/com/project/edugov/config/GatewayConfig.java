@@ -11,7 +11,6 @@ import java.util.List;
 @Configuration
 public class GatewayConfig {
 
-
     private final AuthenticationFilter authFilter;
 
     public GatewayConfig(AuthenticationFilter authFilter) {
@@ -20,25 +19,19 @@ public class GatewayConfig {
 
     @Bean
     public RouteLocator customRouteLocator(RouteLocatorBuilder builder) {
-        return builder.routes()  		
-        		
-        		.route("public-auth", r -> r
-                        .path("/api/identity/register", "/api/auth/**") 
+        return builder.routes()
+                // 1. PUBLIC ROUTES (No Auth Filter)
+                .route("public-auth", r -> r
+                        .path("/api/identity/register", "/api/auth/**")
                         .uri("lb://IDENTITYSERVICEEDUGOV"))
-        		
-        		
-        		.route("registration-service-route", r -> r
-	                    .path("/students/**", "/faculty/**") 
-	                    .uri("lb://REGISTRATIONSERVICEEDUGOV")) // Use the ID from Eureka
-        		
-        		
-        		
-        		.route("document-service-route", r -> r
-        			    .path("/documents/**") 
-        			    .filters(f -> f.filter(authFilter.apply(new AuthenticationFilter.Config()))) 
-        			    .uri("lb://DOCUMENT-SERVICE"))
-        		
-        		 // Only UNIV_ADMIN can PATCH (update) a user's status
+
+                // 2. DOCUMENT SERVICE (Basic Auth)
+                .route("document-service-route", r -> r
+                        .path("/documents/**")
+                        .filters(f -> f.filter(authFilter.apply(new AuthenticationFilter.Config()))) // Fixed parens
+                        .uri("lb://DOCUMENT-SERVICE"))
+
+                // 3. IDENTITY ADMIN (Role Based)
                 .route("identity-admin-update", r -> r
                         .path("/api/users/status/**")
                         .and().method("PATCH")
@@ -49,10 +42,7 @@ public class GatewayConfig {
                         })
                         .uri("lb://IDENTITYSERVICEEDUGOV"))
 
-                // ----------------------------------------------------
-                // 2. MID-LEVEL RULES: Admin & Manager Views
-                // ----------------------------------------------------
-                // UNIV_ADMIN and PROG_MANAGER can GET users by role or status
+                // 4. IDENTITY MANAGER (Role Based)
                 .route("identity-manager-view", r -> r
                         .path("/api/users/role/**", "/api/users/status/**")
                         .and().method("GET")
@@ -63,48 +53,32 @@ public class GatewayConfig {
                         })
                         .uri("lb://IDENTITYSERVICEEDUGOV"))
 
-                // ----------------------------------------------------
-                // 3. GENERAL RULES: Catch-all for Identity Service
-                // ----------------------------------------------------
-                // Everything else (Login, Reset Password, Get User By ID) 
-                // falls down to this generic route. No specific roles required.
+                // 5. IDENTITY GENERAL (Catch-all with Basic Auth)
                 .route("identity-general", r -> r
-                        .path("/api/auth/**", "/api/users/**")
-                        .filters(f -> f.filter(authFilter.apply(new AuthenticationFilter.Config())))
+                        .path("/api/users/**")
+                        .filters(f -> f.filter(authFilter.apply(new AuthenticationFilter.Config()))) // Fixed parens
                         .uri("lb://IDENTITYSERVICEEDUGOV"))
-                
-                .route("identity-service-route", r -> r
-	                    .path("/api/auth/**", "/api/users/**", "/api/identity/**") 
-	                    .uri("lb://IDENTITYSERVICEEDUGOV"))
-	            
-                
-                
-                
-                
-                
-                
-                
-             
-                
-	            // NEW: Route for Registration Service
-//	            .route("registration-service-route", r -> r
-//	                    .path("/students/**", "/faculty/**") 
-//	                    .uri("lb://REGISTRATIONSERVICEEDUGOV")) // Use the ID from Eureka
-             // 2. ACADEMIC SERVICE (Your Module)
-             // Update this section in your GatewayConfig.java
+
+                // 6. REGISTRATION SERVICE
+                .route("registration-service-route", r -> r
+                        .path("/students/**", "/faculty/**")
+                        .uri("lb://REGISTRATIONSERVICEEDUGOV"))
+
+                // 7. RESEARCH & GRANTS
+                .route("research-project-route", r -> r
+                        .path("/api/projects/**", "/api/grants/**")
+                        .filters(f -> f.filter(authFilter.apply(new AuthenticationFilter.Config()))) // Fixed parens
+                        .uri("lb://RESEARCHANDGRANTSERVICEEDUGOV"))
+
+                // 8. ACADEMIC SERVICE
                 .route("academic-service-route", r -> r
-                    .path("/programs/**", "/courses/**", "/enrollments/**")
-                    .filters(f -> {
-                        AuthenticationFilter.Config config = new AuthenticationFilter.Config();
-                        // Explicitly allow roles that need access to these modules
-                        config.setAllowedRoles(List.of("UNIV_ADMIN", "STUDENT", "FACULTY")); 
-                        return f.filter(authFilter.apply(config));
-                    })
-                    .uri("lb://ACADEMIC-SERVICE")) // Ensure this ID matches your Eureka registration
-                
-                
-                
+                        .path("/programs/**", "/courses/**", "/enrollments/**")
+                        .filters(f -> {
+                            AuthenticationFilter.Config config = new AuthenticationFilter.Config();
+                            config.setAllowedRoles(List.of("UNIV_ADMIN", "STUDENT", "FACULTY"));
+                            return f.filter(authFilter.apply(config));
+                        }) // Fixed closing brace and paren
+                        .uri("lb://ACADEMIC-SERVICE"))
                 .build();
-        		        		
     }
 }

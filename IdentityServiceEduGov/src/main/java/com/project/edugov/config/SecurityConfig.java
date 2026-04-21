@@ -11,7 +11,6 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
-import org.springframework.http.HttpMethod;
 import com.project.edugov.security.JwtAuthenticationFilter;
 //import feign.Request.HttpMethod;
 
@@ -41,6 +40,11 @@ public class SecurityConfig {
             .csrf(csrf -> csrf.disable())
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/api/auth/**", "/api/identity/register", "/api/identity/status/**","/api/identity/users/**","/api/users/**").permitAll()
+
+                .requestMatchers("/api/auth/**", "/api/identity/register", "/api/identity/status/**","/api/users/**").permitAll()
+
+                .requestMatchers("/api/auth/**", "/api/identity/register", "/api/identity/status/**","/api/identity/users/**").permitAll()
+
                 // 1. PUBLIC ENDPOINTS (No token required - matches the Gateway's RouteValidator)
                 .requestMatchers(
                         "/api/auth/login", 

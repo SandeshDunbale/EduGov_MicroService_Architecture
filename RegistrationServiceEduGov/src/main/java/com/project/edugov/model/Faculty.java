@@ -16,7 +16,7 @@ public class Faculty {
     // This is the "soft link" to the Identity Microservice
     @Column(name = "user_id", nullable = false, unique = true, updatable = false)
     private Long userId; 
-
+    
     private String name;
     private String phone;
     private LocalDate dob;

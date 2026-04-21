@@ -13,5 +13,5 @@ public class UserResponseDTO {
     private String email;
     private Role role;
     private Status status;
-    private LocalDate dob;
+   private LocalDate dob;
 }
