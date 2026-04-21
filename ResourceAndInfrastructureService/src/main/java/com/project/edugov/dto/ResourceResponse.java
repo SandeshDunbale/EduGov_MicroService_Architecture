@@ -2,11 +2,16 @@ package com.project.edugov.dto;
 
 import com.project.edugov.model.ResourceStatus;
 import com.project.edugov.model.ResourceType;
+import lombok.*;
 
-public record ResourceResponse(
-        Long resourceId,
-        Long programId,
-        ResourceType type,
-        Integer quantity,
-        ResourceStatus status
-) {}
+@Data
+@NoArgsConstructor // Fixes the 500 Error
+@AllArgsConstructor
+@Builder
+public class ResourceResponse {
+    private Long resourceId;
+    private Long programId;
+    private ResourceType type;
+    private Integer quantity;
+    private ResourceStatus status;
+}

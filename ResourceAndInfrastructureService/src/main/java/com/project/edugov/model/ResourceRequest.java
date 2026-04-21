@@ -25,13 +25,11 @@ public class ResourceRequest {
     @Column(name = "RequesterUserID", nullable = false)
     private Long requesterUserId;
 
-    /** LOCAL relation ✅ (same microservice) */
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.EAGER) // Change from LAZY to EAGER
     @JoinColumn(name = "ResourceID")
     private Resource resource;
 
-    /** LOCAL relation ✅ (same microservice) */
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.EAGER) // Change from LAZY to EAGER
     @JoinColumn(name = "InfraID")
     private Infrastructure infrastructure;
 

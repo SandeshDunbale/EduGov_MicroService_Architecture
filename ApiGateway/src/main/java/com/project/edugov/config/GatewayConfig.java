@@ -196,6 +196,20 @@ public class GatewayConfig {
 //	            .route("registration-service-route", r -> r
 //	                    .path("/students/**", "/faculty/**") 
 //	                    .uri("lb://REGISTRATIONSERVICEEDUGOV")) // Use the ID from Eureka
+             // 2. ACADEMIC SERVICE (Your Module)
+             // Update this section in your GatewayConfig.java
+                .route("academic-service-route", r -> r
+                    .path("/programs/**", "/courses/**", "/enrollments/**")
+                    .filters(f -> {
+                        AuthenticationFilter.Config config = new AuthenticationFilter.Config();
+                        // Explicitly allow roles that need access to these modules
+                        config.setAllowedRoles(List.of("UNIV_ADMIN", "STUDENT", "FACULTY")); 
+                        return f.filter(authFilter.apply(config));
+                    })
+                    .uri("lb://ACADEMIC-SERVICE")) // Ensure this ID matches your Eureka registration
+                
+                
+                
                 .build();
         		
         		

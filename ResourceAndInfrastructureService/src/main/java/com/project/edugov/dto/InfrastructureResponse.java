@@ -2,12 +2,17 @@ package com.project.edugov.dto;
 
 import com.project.edugov.model.InfrastructureStatus;
 import com.project.edugov.model.InfrastructureType;
+import lombok.*;
 
-public record InfrastructureResponse(
-        Long infraId,
-        Long programId,
-        InfrastructureType type,
-        String location,
-        Integer capacity,
-        InfrastructureStatus status
-) {}
+@Data
+@NoArgsConstructor // Fixes the 500 Error
+@AllArgsConstructor
+@Builder
+public class InfrastructureResponse {
+    private Long infraId;
+    private Long programId;
+    private InfrastructureType type;
+    private String location;
+    private Integer capacity;
+    private InfrastructureStatus status;
+}

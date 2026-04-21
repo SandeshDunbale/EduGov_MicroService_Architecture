@@ -110,7 +110,7 @@ public class ResourceController {
     // =============================================
     // GET ALL RESOURCES
     // =============================================
-    @GetMapping
+    @GetMapping("/all")
     public List<ResourceResponse> getAll() {
         log.info("Fetch ALL Resources");
 

@@ -62,18 +62,20 @@ public class ResourceRequestServiceImpl implements ResourceRequestService {
     // ----------------------------------------------------
     private void validateRole(Long userId, RequestItemType type) {
 
-        UserDTO requester = userClient.getUserById(userId);
+        UserDTO user = userClient.getUserById(userId);
+
+        if (!user.active()) {
+            throw new IllegalStateException("User is inactive");
+        }
 
         if (type == RequestItemType.RESOURCE &&
-            !"STUDENT".equals(requester.role())) {
-            throw new RoleMismatchException(
-                    "Only STUDENT can submit RESOURCE requests.");
+            !"STUDENT".equalsIgnoreCase(user.role())) {
+            throw new RoleMismatchException("Only STUDENT can submit RESOURCE requests.");
         }
 
         if (type == RequestItemType.INFRASTRUCTURE &&
-            !"FACULTY".equals(requester.role())) {
-            throw new RoleMismatchException(
-                    "Only FACULTY can submit INFRASTRUCTURE requests.");
+            !"FACULTY".equalsIgnoreCase(user.role())) {
+            throw new RoleMismatchException("Only FACULTY can submit INFRASTRUCTURE requests.");
         }
     }
 

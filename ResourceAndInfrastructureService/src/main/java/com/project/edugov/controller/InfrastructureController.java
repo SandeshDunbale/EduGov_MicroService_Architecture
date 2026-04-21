@@ -72,7 +72,7 @@ public class InfrastructureController {
     // =============================================
     // GET ALL INFRASTRUCTURE
     // =============================================
-    @GetMapping
+    @GetMapping("/all")
     public List<InfrastructureResponse> getAll() {
 
         log.info("Fetch ALL Infrastructure");

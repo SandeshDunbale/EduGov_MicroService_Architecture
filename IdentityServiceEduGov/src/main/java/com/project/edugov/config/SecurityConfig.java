@@ -40,7 +40,7 @@ public class SecurityConfig {
         http
             .csrf(csrf -> csrf.disable())
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/api/auth/**", "/api/identity/register", "/api/identity/status/**","/api/identity/users/**").permitAll()
+                .requestMatchers("/api/auth/**", "/api/identity/register", "/api/identity/status/**","/api/identity/users/**","/api/users/**").permitAll()
                 // 1. PUBLIC ENDPOINTS (No token required - matches the Gateway's RouteValidator)
                 .requestMatchers(
                         "/api/auth/login", 
