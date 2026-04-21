@@ -54,7 +54,7 @@ public class DocumentServiceImpl implements DocumentService {
 
         // Convert Entity to DTO to fix Controller error
         return DocumentResponse.builder()
-                .documentId(savedDoc.getUserId())
+                .documentId(savedDoc.getDocumentId())
                 .docType(savedDoc.getDocType())
                 .docNum(savedDoc.getDocNum())
                 .uploadStatus(savedDoc.getVerificationStatus().toString())
@@ -78,7 +78,7 @@ public class DocumentServiceImpl implements DocumentService {
 
         // Convert Entity to DTO to fix Controller error
         return DocumentResponse.builder()
-                .documentId(updatedDoc.getUserId())
+                .documentId(updatedDoc.getDocumentId())
                 .docType(updatedDoc.getDocType())
                 .docNum(updatedDoc.getDocNum())
                 .uploadStatus(updatedDoc.getVerificationStatus().toString())

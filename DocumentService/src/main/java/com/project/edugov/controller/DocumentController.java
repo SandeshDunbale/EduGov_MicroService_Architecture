@@ -59,7 +59,7 @@ public class DocumentController {
         // Map the list of entities to a list of DTOs
         List<DocumentResponse> response = documents.stream()
             .map(doc -> DocumentResponse.builder()
-                .documentId(doc.getUserId())
+                .documentId(doc.getDocumentId())
                 .docType(doc.getDocType())
                 .docNum(doc.getDocNum())
                 .uploadStatus(doc.getVerificationStatus().toString())
@@ -77,7 +77,7 @@ public class DocumentController {
         Document doc = docService.getDocumentById(docId);
         
         DocumentResponse response = DocumentResponse.builder()
-                .documentId(doc.getUserId())
+                .documentId(doc.getDocumentId())
                 .docType(doc.getDocType())
                 .docNum(doc.getDocNum())
                 .uploadStatus(doc.getVerificationStatus().toString())

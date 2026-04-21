@@ -18,6 +18,7 @@ public interface StudentService {
     StudentResponseDTO updateStudent(Long id, StudentDTO dto);
     
     Optional<StudentResponseDTO> getStudentById(Long id);
+    //StudentResponseDTO getStudentById(Long id);
     
     String deleteStudent(Long id);
 }
