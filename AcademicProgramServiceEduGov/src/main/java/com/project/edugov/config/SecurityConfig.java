@@ -9,10 +9,14 @@ import org.springframework.security.web.SecurityFilterChain;
 @Configuration
 @EnableWebSecurity
 public class SecurityConfig {
-    @Bean
-    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
-        http.csrf(csrf -> csrf.disable())
-            .authorizeHttpRequests(auth -> auth.anyRequest().permitAll());
-        return http.build();
-    }
+
+	@Bean
+	public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+		// Disables CSRF for microservice API interaction
+		http.csrf(csrf -> csrf.disable())
+				// Permits all requests (Temporary/Development mode)
+				.authorizeHttpRequests(auth -> auth.anyRequest().permitAll());
+
+		return http.build();
+	}
 }

@@ -1,6 +1,7 @@
 package com.project.edugov.model;
 
 import java.time.LocalDate;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -20,30 +21,30 @@ import lombok.Data;
 @Data
 public class Program {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long programId; 
+	@Id
+	@GeneratedValue(strategy = GenerationType.IDENTITY)
+	private Long programId;
 
-    @NotBlank(message = "Program title cannot be empty")
-    @Size(min = 3, max = 100, message = "Title must be between 3 and 100 characters")
-    private String title; 
+	@NotBlank(message = "Program title cannot be empty")
+	@Size(min = 3, max = 100, message = "Title must be between 3 and 100 characters")
+	private String title;
 
-    @Column(columnDefinition = "TEXT")
-    private String description; 
+	@Column(columnDefinition = "TEXT")
+	private String description;
 
-    @FutureOrPresent(message = "Start date cannot be in the past")
-    @NotNull(message = "Start date is required")
-    private LocalDate startDate; 
+	@FutureOrPresent(message = "Start date cannot be in the past")
+	@NotNull(message = "Start date is required")
+	private LocalDate startDate;
 
-    @FutureOrPresent(message = "End date cannot be in the past")
-    @NotNull(message = "End date is required")
-    private LocalDate endDate; 
+	@FutureOrPresent(message = "End date cannot be in the past")
+	@NotNull(message = "End date is required")
+	private LocalDate endDate;
 
-    @NotNull(message = "Program status cannot be null")
-    @Enumerated(EnumType.STRING)
-    private Status status = Status.ACTIVE; 
+	@NotNull(message = "Program status cannot be null")
+	@Enumerated(EnumType.STRING)
+	private Status status = Status.ACTIVE;
 
-    @NotNull(message = "Admin ID is required")
-    @Column(name = "admin_id", updatable = false)
-    private Long createdByAdminId; // Corrected naming convention
+	@NotNull(message = "Admin ID is required")
+	@Column(name = "admin_id", updatable = false)
+	private Long createdByAdminId;
 }

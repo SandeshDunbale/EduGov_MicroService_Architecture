@@ -10,5 +10,5 @@ public class FacultyFeignDTO {
 	private String name;
 	private String email;
 	private String department;
-	private Status status; // Uses your Status Enum (ACTIVE, INACTIVE, etc.)
+	private Status status;
 }

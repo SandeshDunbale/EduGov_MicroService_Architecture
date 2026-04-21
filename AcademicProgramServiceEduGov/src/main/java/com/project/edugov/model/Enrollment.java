@@ -24,24 +24,22 @@ public class Enrollment {
 
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
-	private Long enrollmentId; // Fixed naming convention (camelCase)
+	private Long enrollmentId;
 
-	// DECOUPLED: Replaced Student object with Long studentId
 	@Column(name = "student_id", nullable = false)
 	private Long studentId;
 
 	@ManyToOne(fetch = FetchType.LAZY)
 	@JoinColumn(name = "course_id", referencedColumnName = "courseId", nullable = false)
-	private Course course; // Course is internal to this microservice
+	private Course course;
 
 	@CreationTimestamp
 	@Column(name = "enrollment_date", updatable = false)
 	private LocalDateTime date;
 
 	@Enumerated(EnumType.STRING)
-	private Status status = Status.PENDING; // Initial status [cite: 51]
+	private Status status = Status.PENDING;
 
-	// DECOUPLED: Replaced User object with Long approvedByAdminId
 	@Column(name = "approved_by_admin_id")
 	private Long approvedByAdminId;
 }

@@ -6,16 +6,12 @@ import org.springframework.web.bind.annotation.PathVariable;
 
 import com.project.edugov.dto.FacultyFeignDTO;
 
-/**
- * Feign Client to communicate with the FACULTY-SERVICE (FacultyController).
- */
+//Interface for communication with Faculty service
+
 @FeignClient(name = "REGISTRATIONSERVICEEDUGOV", contextId = "facultyClient")
 public interface FacultyClient {
 
-	/**
-	 * Calls: GET http://FACULTY-SERVICE/faculty/{id} This matches your
-	 * FacultyController @GetMapping("/{id}")
-	 */
+	// Faculty details by ID
 	@GetMapping("/faculty/{id}")
 	FacultyFeignDTO getFacultyById(@PathVariable("id") Long id);
 }

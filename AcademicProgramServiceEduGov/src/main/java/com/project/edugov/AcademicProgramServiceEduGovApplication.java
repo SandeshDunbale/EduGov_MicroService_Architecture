@@ -10,21 +10,20 @@ import org.springframework.context.annotation.Bean;
 
 @SpringBootApplication
 @EnableDiscoveryClient
-@EnableFeignClients 
+@EnableFeignClients
 public class AcademicProgramServiceEduGovApplication {
 
 	public static void main(String[] args) {
 		SpringApplication.run(AcademicProgramServiceEduGovApplication.class, args);
-		
 	}
-	
-	@Bean
-    public ModelMapper modelMapper() {
-        ModelMapper modelMapper = new ModelMapper();
-        // Sets strategy to STRICT to avoid 'courseId' matching multiple sources
-        modelMapper.getConfiguration()
-                   .setMatchingStrategy(MatchingStrategies.STRICT);
-        return modelMapper;
-    }
 
+	@Bean
+	public ModelMapper modelMapper() {
+		ModelMapper modelMapper = new ModelMapper();
+
+		// Strict matching prevents ambiguous ID mapping across microservices
+		modelMapper.getConfiguration().setMatchingStrategy(MatchingStrategies.STRICT);
+
+		return modelMapper;
+	}
 }

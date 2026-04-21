@@ -11,11 +11,9 @@ import com.project.edugov.model.Status;
 @Repository
 public interface EnrollmentRepository extends JpaRepository<Enrollment, Long> {
 
-	// Matches your monolith logic: checks if a student is already enrolled in a
-	// course
-	// Uses the decoupled Long studentId and the internal Course relationship
+	// Checks for duplicate enrollment
 	boolean existsByStudentIdAndCourse_CourseId(Long studentId, Long courseId);
 
-	// Matches your monolith logic: filters by PENDING, ACTIVE, etc.
+	// Find enrollments by status
 	List<Enrollment> findByStatus(Status status);
 }
