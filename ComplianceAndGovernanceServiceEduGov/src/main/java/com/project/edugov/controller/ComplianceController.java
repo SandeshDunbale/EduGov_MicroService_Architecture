@@ -2,7 +2,7 @@ package com.project.edugov.controller;
 
 import com.project.edugov.dto.ComplianceRecordDTO;
 import com.project.edugov.model.ComplianceRecord;
-import com.project.edugov.service.ComplianceService;
+import com.project.edugov.service.ComplianceServiceImpl;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -14,7 +14,7 @@ import java.util.List;
 @CrossOrigin(origins = "*")
 public class ComplianceController {
 
-    @Autowired private ComplianceService service;
+    @Autowired private ComplianceServiceImpl service;
 
     @PostMapping("/generate/{officerId}")
     public ResponseEntity<String> generate(@PathVariable Long officerId) {

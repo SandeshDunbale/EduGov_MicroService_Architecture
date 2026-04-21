@@ -8,9 +8,9 @@ import org.springframework.web.bind.annotation.PathVariable;
 import java.util.List;
 
 @FeignClient(
-    name = "AcademicProgramServiceEduGov",
+    name = "ACADEMIC-SERVICE",
     contextId = "remoteProgramClient",
-    path = "/api/programs"
+    path = "/programs"
 )
 public interface RemoteProgramClient {
 

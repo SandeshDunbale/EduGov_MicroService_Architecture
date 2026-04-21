@@ -2,7 +2,7 @@ package com.project.edugov.controller;
 
 import com.project.edugov.dto.AuditReviewDTO;
 import com.project.edugov.model.Audit;
-import com.project.edugov.service.AuditService;
+import com.project.edugov.service.AuditServiceImpl;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -19,7 +19,7 @@ public class AuditController {
     private static final Logger logger = LoggerFactory.getLogger(AuditController.class);
 
     @Autowired
-    private AuditService auditService;
+    private AuditServiceImpl auditService;
 
     @PostMapping
     public ResponseEntity<Audit> createAudit(@RequestBody Audit audit, @RequestHeader("X-User-Id") Long userId) {

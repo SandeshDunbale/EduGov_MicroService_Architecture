@@ -11,24 +11,29 @@ import org.springframework.web.bind.annotation.RequestParam;
 import java.util.List;
 
 @FeignClient(
-    name = "ResearchAndGrantServiceEduGov",
-    contextId = "remoteResearchAndGrantServiceClient",
-    path = "/api"
-)
-public interface RemoteResearchAndGrantServiceClient {
+	    name = "ResearchAndGrantServiceEduGov",
+	    contextId = "remoteResearchAndGrantServiceClient",
+	    path = "/api"
+	)
+	public interface RemoteResearchAndGrantServiceClient {
 
-    @GetMapping("/grant-applications/status")
-    List<GrantApplicationDto> getGrantApplicationsByStatus(@RequestParam("status") List<String> statuses);
+	    // Matches @RequestMapping("/api/grants") + @GetMapping("/applications/status")
+	    @GetMapping("/grants/applications/status")
+	    List<GrantApplicationDto> getGrantApplicationsByStatus(@RequestParam("status") List<String> statuses);
 
-    @GetMapping("/grant-applications/project/{projectId}")
-    GrantApplicationDto getGrantApplicationByProjectId(@PathVariable("projectId") Long projectId);
+	    // Matches @RequestMapping("/api/grants") + @GetMapping("/applications/project/{projectId}")
+	    @GetMapping("/grants/applications/project/{projectId}")
+	    GrantApplicationDto getGrantApplicationByProjectId(@PathVariable("projectId") Long projectId);
 
-    @GetMapping("/grants")
-    List<GrantDto> getAllGrants();
+	    // Matches @RequestMapping("/api/grants") + @GetMapping("/all")
+	    @GetMapping("/grants/all")
+	    List<GrantDto> getAllGrants();
 
-    @GetMapping("/grants/project/{projectId}")
-    GrantDto getGrantByProjectId(@PathVariable("projectId") Long projectId);
+	    // This one was already correct!
+	    @GetMapping("/grants/project/{projectId}")
+	    GrantDto getGrantByProjectId(@PathVariable("projectId") Long projectId);
 
-    @GetMapping("/research-projects/{projectId}")
-    ResearchProjectDto getResearchProjectById(@PathVariable("projectId") Long projectId);
-}
+	    // FIXED: Your ResearchProjectController is mapped to /api/projects, NOT /api/research-projects
+	    @GetMapping("/projects/{projectId}")
+	    ResearchProjectDto getResearchProjectById(@PathVariable("projectId") Long projectId);
+	}
