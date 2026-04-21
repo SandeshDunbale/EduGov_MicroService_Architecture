@@ -6,16 +6,12 @@ import org.springframework.web.bind.annotation.PathVariable;
 
 import com.project.edugov.dto.StudentFeignDTO;
 
-/**
- * Feign Client to communicate with the STUDENT-SERVICE (StudentController).
- */
+//Interface for communication with Student service
+
 @FeignClient(name = "REGISTRATIONSERVICEEDUGOV", contextId = "studentClient")
 public interface StudentClient {
 
-	/**
-	 * Calls: GET http://STUDENT-SERVICE/students/{id} This matches your
-	 * StudentController @GetMapping("/{id}")
-	 */
+	// Fetch Student details by ID
 	@GetMapping("/students/{id}")
 	StudentFeignDTO getStudentById(@PathVariable("id") Long id);
 }

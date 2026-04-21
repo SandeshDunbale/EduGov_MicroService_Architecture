@@ -18,65 +18,68 @@ import com.project.edugov.model.Course;
 import com.project.edugov.service.CourseService;
 
 import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 @RestController
-@RequestMapping("/courses")
 @Slf4j
+@RequiredArgsConstructor
+@RequestMapping("/courses")
 public class CourseController {
 
-	@Autowired
-	private CourseService courseService;
+	private final CourseService courseService;
 
-	/**
-	 * Admin create new course. Updated to extract flat IDs from the request body.
-	 */
+	// Create a new academic course
 	@PostMapping("/save")
 	public ResponseEntity<CourseDTO> createCourse(@Valid @RequestBody Course course) {
-		// Extraction logic changed for Microservices (flat fields)
-		Long pId = (course.getProgram() != null) ? course.getProgram().getProgramId() : null;
-		Long fId = course.getFacultyId();
-		Long aId = course.getCreatedByAdminId();
-
-		log.info("REST Request: Create course '{}' by Admin ID: {} for Faculty: {} in Program: {}", course.getTitle(),
-				aId, fId, pId);
-
-		return new ResponseEntity<>(courseService.createCourse(course, pId, fId, aId), HttpStatus.CREATED);
+		log.info("POST Request :- /courses/save || Action: Initiating Course Creation for '{}'", course.getTitle());
+		CourseDTO result = courseService.createCourse(course);
+		log.info("Status: Created || Course ID: {}", result.getCourseId());
+		return new ResponseEntity<>(result, HttpStatus.CREATED);
 	}
 
-	// Get all courses
-	@GetMapping("/all")
-	public ResponseEntity<List<CourseDTO>> getAllCourses() {
-		log.info("REST Request: Fetch all courses");
-		return ResponseEntity.ok(courseService.getAllCourses());
-	}
-
-	// Find course by faculty Id (External Service verification happens in
-	// ServiceImpl)
-	@GetMapping("/faculty/{facultyId}")
-	public ResponseEntity<List<CourseDTO>> getCoursesByFaculty(@PathVariable Long facultyId) {
-		log.info("REST Request: Fetch courses for Faculty ID: {}", facultyId);
-		return ResponseEntity.ok(courseService.getCoursesByFacultyId(facultyId));
-	}
-
-	// Find courses by program Id (Local DB check)
-	@GetMapping("/program/{programId}")
-	public ResponseEntity<List<CourseDTO>> getCoursesByProgram(@PathVariable Long programId) {
-		log.info("REST Request: Fetch courses for Program ID: {}", programId);
-		return ResponseEntity.ok(courseService.getCoursesByProgramId(programId));
-	}
-
-	// Find courses by course Id
+	// Fetch a specific course details by CourseId
 	@GetMapping("/{courseId}")
 	public ResponseEntity<CourseDTO> getCourseById(@PathVariable Long courseId) {
-		log.info("REST Request: Fetching course details for ID: {}", courseId);
-		return ResponseEntity.ok(courseService.getCourseById(courseId));
+		log.info("GET Request:- /courses/{} || Action: Fetching Course Details", courseId);
+		CourseDTO result = courseService.getCourseById(courseId);
+		log.info("Status: Found || Course ID: {}", result.getCourseId());
+		return ResponseEntity.ok(result);
 	}
 
-	// Update course details
+	// Fetch a specific course details assigned to facultyId
+	@GetMapping("/faculty/{facultyId}")
+	public ResponseEntity<List<CourseDTO>> getCoursesByFaculty(@PathVariable Long facultyId) {
+		log.info("GET Request:- /courses/faculty/{} || Action: Fetching Courses for Faculty", facultyId);
+		List<CourseDTO> courses = courseService.getCoursesByFacultyId(facultyId);
+		log.info("Status: Success || Records Found: {}", courses.size());
+		return ResponseEntity.ok(courses);
+	}
+
+	// Fetch course details under specififc programId
+	@GetMapping("/program/{programId}")
+	public ResponseEntity<List<CourseDTO>> getCoursesByProgram(@PathVariable Long programId) {
+		log.info("GET Request:- /courses/program/{} || Action: Fetching Courses for Program", programId);
+		List<CourseDTO> courses = courseService.getCoursesByProgramId(programId);
+		log.info("Status: Success || Records Found: {}", courses.size());
+		return ResponseEntity.ok(courses);
+	}
+
+	// Update an existing course
 	@PatchMapping("/update/{id}")
 	public ResponseEntity<CourseDTO> updateCourse(@PathVariable Long id, @RequestBody Course details) {
-		log.info("REST Request: Update Course ID: {}", id);
-		return ResponseEntity.ok(courseService.updateCourse(id, details));
+		log.info("PATCH Request:- /courses/update/{} || Action: Updating Course Details", id);
+		CourseDTO updated = courseService.updateCourse(id, details);
+		log.info("Status: Updated || Course ID: {}", updated.getCourseId());
+		return ResponseEntity.ok(updated);
+	}
+
+	// List of all courses
+	@GetMapping("/all")
+	public ResponseEntity<List<CourseDTO>> getAllCourses() {
+		log.info("GET Request:- /courses/all || Action: Retrieving All Academic Courses");
+		List<CourseDTO> courses = courseService.getAllCourses();
+		log.info("Status: Success || Total Courses: {}", courses.size());
+		return ResponseEntity.ok(courses);
 	}
 }

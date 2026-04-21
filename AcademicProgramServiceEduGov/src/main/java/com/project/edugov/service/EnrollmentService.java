@@ -1,6 +1,7 @@
 package com.project.edugov.service;
 
 import java.util.List;
+import java.util.Map;
 
 import com.project.edugov.dto.EnrollmentResponseDTO;
 import com.project.edugov.model.Status;
@@ -10,7 +11,7 @@ public interface EnrollmentService {
 
 	List<EnrollmentResponseDTO> getEnrollmentsByStatus(Status status);
 
-	EnrollmentResponseDTO updateEnrollmentStatus(Long enrollmentId, Long adminId, Status newStatus);
+	EnrollmentResponseDTO updateEnrollmentStatus(Map<String, Object> data);
 
 	List<EnrollmentResponseDTO> getAllEnrollments();
 }

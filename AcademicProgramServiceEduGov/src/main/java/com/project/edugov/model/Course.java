@@ -19,28 +19,26 @@ import lombok.Data;
 @Data
 public class Course {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long courseId; // Fixed naming convention (camelCase)
+	@Id
+	@GeneratedValue(strategy = GenerationType.IDENTITY)
+	private Long courseId; 
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "program_id", referencedColumnName = "programId", nullable = false)
-    private Program program; // Program is internal to this microservice [cite: 24, 43]
+	@ManyToOne(fetch = FetchType.LAZY)
+	@JoinColumn(name = "program_id", referencedColumnName = "programId", nullable = false)
+	private Program program;
 
-    @NotBlank(message = "Course title is mandatory")
-    private String title;
+	@NotBlank(message = "Course title is mandatory")
+	private String title;
 
-    @Column(columnDefinition = "TEXT")
-    private String description;
+	@Column(columnDefinition = "TEXT")
+	private String description;
 
-    // DECOUPLED: Changed from Faculty object to Long facultyId [cite: 24, 41]
-    @Column(name = "faculty_id")
-    private Long facultyId; 
+	@Column(name = "faculty_id")
+	private Long facultyId;
 
-    @Enumerated(EnumType.STRING)
-    private Status status = Status.ACTIVE;
+	@Enumerated(EnumType.STRING)
+	private Status status = Status.ACTIVE;
 
-    // DECOUPLED: Changed from User object to Long createdByAdminId [cite: 24, 33]
-    @Column(name = "admin_id", updatable = false)
-    private Long createdByAdminId;
+	@Column(name = "admin_id", updatable = false)
+	private Long createdByAdminId;
 }

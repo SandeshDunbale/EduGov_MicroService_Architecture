@@ -9,5 +9,5 @@ public class UserFeignDTO {
 	private Long userId;
 	private String name;
 	private String email;
-	private Role role; // Uses your Role Enum (UNIV_ADMIN, etc.)
+	private Role role;
 }

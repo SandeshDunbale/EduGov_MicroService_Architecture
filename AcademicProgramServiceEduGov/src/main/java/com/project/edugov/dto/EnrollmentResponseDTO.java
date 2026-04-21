@@ -18,25 +18,20 @@ import lombok.NoArgsConstructor;
 		"studentEmail", "facultyId", "facultyName", "approvedByAdminId", "approvedByAdminName" })
 public class EnrollmentResponseDTO {
 
-	// From Internal Academic DB (Enrollment Table)
 	private Long enrollmentId;
 	private LocalDateTime enrollmentDate;
 	private Status status;
 
-	// From Internal Academic DB (Course Table/Join)
 	private Long courseId;
 	private String courseTitle;
 
-	// From External STUDENT-SERVICE (via studentId)
-	private Long studentId; // Added this to identify the student
+	private Long studentId;
 	private String studentName;
 	private String studentEmail;
 
-	// From External FACULTY-SERVICE (via facultyId linked to the course)
 	private Long facultyId;
-	private String facultyName; // Corrected to camelCase
+	private String facultyName;
 
-	// From External IDENTITY-SERVICE (via approvedByAdminId)
 	private Long approvedByAdminId;
 	private String approvedByAdminName;
 }

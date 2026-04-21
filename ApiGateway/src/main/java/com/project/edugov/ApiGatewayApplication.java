@@ -15,16 +15,5 @@ public class ApiGatewayApplication {
 	public static void main(String[] args) {
 		SpringApplication.run(ApiGatewayApplication.class, args);
 	}
-//	@Bean
-//	public RouteLocator customRouteLocator(RouteLocatorBuilder builder) {
-//		return builder.routes()
-//
-//				.route("academic-service-route", r ->
-//
-//				r.path("/programs/**", "/courses/**", "/enrollments/**")
-//
-//						.uri("lb://ACADEMIC-SERVICE"))
-//
-//				.build();
-//	}
+
 }

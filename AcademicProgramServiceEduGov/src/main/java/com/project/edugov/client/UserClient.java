@@ -6,11 +6,12 @@ import org.springframework.web.bind.annotation.PathVariable;
 
 import com.project.edugov.dto.UserFeignDTO;
 
-/**
- * Feign Client to communicate with the IDENTITY-SERVICE (UserController).
- */
-@FeignClient(name = "IDENTITYSERVICEEDUGOV", url = "http://localhost:8006") 
+//Interface for communication with Identity service.
+
+@FeignClient(name = "IDENTITYSERVICEEDUGOV")
 public interface UserClient {
-    @GetMapping("/api/users/{id}")
-    UserFeignDTO getUserById(@PathVariable("id") Long id);
+
+	// Fetch UNIV_ADMIN details by ID
+	@GetMapping("/api/users/{id}")
+	UserFeignDTO getUserById(@PathVariable("id") Long id);
 }

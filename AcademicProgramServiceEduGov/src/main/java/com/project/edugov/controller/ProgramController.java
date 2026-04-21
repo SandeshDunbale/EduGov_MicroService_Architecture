@@ -2,7 +2,6 @@ package com.project.edugov.controller;
 
 import java.util.List;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -14,64 +13,63 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.project.edugov.dto.ProgramDTO;
-import com.project.edugov.exception.APIException;
 import com.project.edugov.model.Program;
 import com.project.edugov.service.ProgramService;
 
 import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 @RestController
-@RequestMapping("/programs")
 @Slf4j
+@RequiredArgsConstructor
+@RequestMapping("/programs")
 public class ProgramController {
 
-	@Autowired
-	private ProgramService programService;
+	private final ProgramService programService;
 
-	/**
-	 * Admin Create new program. In Microservices, we expect the adminId to be
-	 * passed in the Program object as 'createdByAdminId' or as a separate
-	 * header/param.
-	 */
+	// Create a new Program
 	@PostMapping("/save")
 	public ResponseEntity<ProgramDTO> createProgram(@Valid @RequestBody Program program) {
-		// Accessing the Long ID directly from the Program model
-		Long adminId = program.getCreatedByAdminId();
-
-		if (adminId == null) {
-			throw new APIException(HttpStatus.BAD_REQUEST, "Admin ID (createdByAdminId) is required.");
-		}
-
-		log.info("REST Request: Create program '{}' by Admin ID: {}", program.getTitle(), adminId);
-		return new ResponseEntity<>(programService.createProgram(program, adminId), HttpStatus.CREATED);
+		log.info("POST Request:- /programs/save || Action: Initiating Program Creation for '{}'", program.getTitle());
+		ProgramDTO result = programService.createProgram(program, program.getCreatedByAdminId());
+		log.info("Status: Created || Program ID: {}", result.getProgramId());
+		return new ResponseEntity<>(result, HttpStatus.CREATED);
 	}
 
-	// Get all programs
-	@GetMapping("/all")
-	public ResponseEntity<List<ProgramDTO>> getAllPrograms() {
-		log.info("REST Request: Fetching all programs");
-		return ResponseEntity.ok(programService.getAllPrograms());
-	}
-
-	// Get Program by ID
+	// Fetch a specific program details by programId
 	@GetMapping("/{id}")
 	public ResponseEntity<ProgramDTO> getProgramById(@PathVariable Long id) {
-		log.info("REST Request: Fetch Program with ID: {}", id);
-		return ResponseEntity.ok(programService.getProgramById(id));
+		log.info("GET Request:- /programs/{} || Action: Fetching Program Details", id);
+		ProgramDTO result = programService.getProgramById(id);
+		log.info("Status: Found || Program ID: {}", result.getProgramId());
+		return ResponseEntity.ok(result);
 	}
 
-	// Search program by title
+	// Fetch a program details by programName
 	@GetMapping("/search/{title}")
 	public ResponseEntity<List<ProgramDTO>> searchPrograms(@PathVariable String title) {
-		log.info("REST Request: Search programs by title: {}", title);
-		return ResponseEntity.ok(programService.searchPrograms(title));
+		log.info("GET Request:- /programs/search/{} || Action: Searching Programs by Title", title);
+		List<ProgramDTO> results = programService.searchPrograms(title);
+		log.info("Status: Success || Records Found: {}", results.size());
+		return ResponseEntity.ok(results);
 	}
 
-	// Update the program (Partial update using Patch)
+	// Update an existing program
 	@PatchMapping("/update/{id}")
 	public ResponseEntity<ProgramDTO> updateProgram(@RequestBody Program details, @PathVariable Long id) {
-		log.info("REST Request: Update Program with ID: {}", id);
-		return ResponseEntity.ok(programService.updateProgramById(id, details));
+		log.info("PATCH Request:- /programs/update/{} || Action: Updating Program Details", id);
+		ProgramDTO result = programService.updateProgramById(id, details);
+		log.info("Status: Updated || Program ID: {}", result.getProgramId());
+		return ResponseEntity.ok(result);
+	}
+
+	// List of all programs
+	@GetMapping("/all")
+	public ResponseEntity<List<ProgramDTO>> getAllPrograms() {
+		log.info("GET Request:- /programs/all || Action: Retrieving All Academic Programs");
+		List<ProgramDTO> results = programService.getAllPrograms();
+		log.info("Status: Success || Total Programs: {}", results.size());
+		return ResponseEntity.ok(results);
 	}
 }
