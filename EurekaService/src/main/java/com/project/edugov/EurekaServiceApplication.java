@@ -1,5 +1,3 @@
-
-
 package com.project.edugov;
 
 import org.springframework.boot.SpringApplication;
