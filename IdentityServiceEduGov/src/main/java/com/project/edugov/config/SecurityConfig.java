@@ -4,6 +4,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -13,9 +14,11 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 import com.project.edugov.security.JwtAuthenticationFilter;
+//import feign.Request.HttpMethod;
 
 @Configuration
 @EnableWebSecurity
+@EnableMethodSecurity
 public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthFilter;
@@ -39,21 +42,23 @@ public class SecurityConfig {
         http
             .csrf(csrf -> csrf.disable())
             .authorizeHttpRequests(auth -> auth
-                // 1. PUBLIC ENDPOINTS (No token required - matches the Gateway's RouteValidator)
+                
+                // 1. STRICTLY PUBLIC ENDPOINTS (No token required)
+                // We map these exactly to match the API Gateway's openApiEndpoints
                 .requestMatchers(
                         "/api/auth/login", 
                         "/api/auth/resetPassword", 
-                        "/api/users/recoverEmail"
+                        "/api/users/recoverEmail",
+                        "/api/identity/register" // Registration must be open so new users can join
                 ).permitAll()
 
                 // 2. SECURE EVERYTHING ELSE
-                // Notice we removed .hasRole()! We just ensure they are authenticated.
-                // The Gateway handles the specific role restrictions before the request even gets here.
+                // This forces Spring to check the JWT and evaluate your @PreAuthorize annotations
                 .anyRequest().authenticated()
             )
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             
-            // We KEEP this filter because it checks the database for Blacklisted (Logged out) tokens!
+            // Checks the database for Blacklisted (Logged out) tokens
             .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();

@@ -1,0 +1,174 @@
+package com.project.edugov.service;
+
+import java.util.List;
+import java.util.stream.Collectors;
+
+import org.modelmapper.ModelMapper;
+import org.springframework.http.HttpStatus;
+import org.springframework.stereotype.Service;
+
+import com.project.edugov.client.UserClient;
+import com.project.edugov.dto.ProgramDTO;
+import com.project.edugov.dto.UserFeignDTO;
+import com.project.edugov.exception.APIException;
+import com.project.edugov.exception.ResourceNotFoundException;
+import com.project.edugov.model.Program;
+import com.project.edugov.model.Role;
+import com.project.edugov.model.Status;
+import com.project.edugov.repository.ProgramRepository;
+
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+
+@Service
+@Slf4j
+@RequiredArgsConstructor
+public class ProgramServiceImpl implements ProgramService {
+
+	private final ProgramRepository programRepo;
+	private final UserClient userClient;
+	private final ModelMapper modelMapper;
+
+	// HELPER METHOD
+	private ProgramDTO mapToCustomDto(Program program) {
+		ProgramDTO dto = modelMapper.map(program, ProgramDTO.class);
+		try {
+			UserFeignDTO admin = userClient.getUserById(program.getCreatedByAdminId());
+			if (admin != null) {
+				dto.setAdminId(admin.getUserId());
+				dto.setAdminName(admin.getName());
+				dto.setAdminEmail(admin.getEmail());
+			} else {
+				dto.setAdminId(program.getCreatedByAdminId());
+			}
+		} catch (Exception e) {
+			log.error("Remote Service Error: Admin details unavailable for ID {}", program.getCreatedByAdminId());
+			dto.setAdminId(program.getCreatedByAdminId());
+			dto.setAdminName("Information Unavailable");
+			dto.setAdminEmail("N/A");
+		}
+		return dto;
+	}
+
+	@Override
+	public ProgramDTO createProgram(Program program, Long adminId) {
+		log.info("Service: Checking conditions for creating program '{}'", program.getTitle());
+		if (adminId == null || adminId <= 0) {
+			log.error("Failed: Admin ID is null or invalid");
+			throw new APIException(HttpStatus.BAD_REQUEST, "A valid Admin ID is required.");
+		}
+		// 1. Verify Admin via Identity Service
+		try {
+			UserFeignDTO admin = userClient.getUserById(adminId);
+			if (admin == null || !Role.UNIV_ADMIN.equals(admin.getRole())) {
+				log.warn("Unauthorized: User {} is not a UNIV_ADMIN", adminId);
+				throw new APIException(HttpStatus.FORBIDDEN,
+						"Access Denied: Only University Admins can create programs.");
+			}
+		} catch (feign.FeignException e) {
+			log.error("Feign Error: Status Code {}", e.status());
+			// This handles "Not Found" logic even if Identity service returns
+			// 500/RuntimeException
+			if (e.status() == 404 || e.status() == 500 || e.status() == 403
+					|| e.contentUTF8().toLowerCase().contains("not found")) {
+				throw new ResourceNotFoundException("Admin not found with ID: " + adminId);
+			}
+			throw new APIException(HttpStatus.SERVICE_UNAVAILABLE, "Identity Service is unreachable.");
+		}
+		if (programRepo.existsByTitleIgnoreCase(program.getTitle())) {
+			log.warn("Failed: Program title '{}' already exists", program.getTitle());
+			throw new APIException(HttpStatus.BAD_REQUEST, "Program title already exists.");
+		}
+		program.setCreatedByAdminId(adminId);
+		Program savedProgram = programRepo.save(program);
+		log.info("Service: Program '{}' saved successfully", savedProgram.getTitle());
+		return mapToCustomDto(savedProgram);
+	}
+
+	@Override
+	public ProgramDTO getProgramById(Long id) {
+		log.info("Service: Fetching program details for ID: {}", id);
+		if (id == null || id <= 0) {
+			throw new APIException(HttpStatus.BAD_REQUEST, "Invalid Program ID provided.");
+		}
+		Program program = programRepo.findById(id).orElseThrow(() -> {
+			log.warn("Program with ID {} not found", id);
+			return new ResourceNotFoundException("Program not found with ID: " + id);
+		});
+		return mapToCustomDto(program);
+	}
+
+	@Override
+	public List<ProgramDTO> searchPrograms(String title) {
+		log.info("Service: Searching for keyword '{}'", title);
+		if (title == null || title.trim().isEmpty()) {
+			throw new APIException(HttpStatus.BAD_REQUEST, "Search keyword cannot be empty.");
+		}
+		List<Program> programs = programRepo.findByTitleContainingIgnoreCase(title);
+		if (programs.isEmpty()) {
+			log.warn("Service: No matches found for title '{}'", title);
+			throw new ResourceNotFoundException("No programs found matching: " + title);
+		}
+		return programs.stream().map(this::mapToCustomDto).collect(Collectors.toList());
+	}
+
+	@Override
+	public ProgramDTO updateProgramById(Long id, Program details) {
+		log.info("Service: Validating update conditions for ID: {}", id);
+		Program existingProgram = programRepo.findById(id)
+				.orElseThrow(() -> new ResourceNotFoundException("Program not found with ID: " + id));
+		boolean isChanged = false;
+		if (details.getTitle() != null && !details.getTitle().equalsIgnoreCase(existingProgram.getTitle())) {
+			if (programRepo.existsByTitleIgnoreCase(details.getTitle())) {
+				throw new APIException(HttpStatus.BAD_REQUEST, "Title already in use.");
+			}
+			existingProgram.setTitle(details.getTitle());
+			isChanged = true;
+		}
+		if (details.getDescription() != null && !details.getDescription().equals(existingProgram.getDescription())) {
+			existingProgram.setDescription(details.getDescription());
+			isChanged = true;
+		}
+		if (details.getStartDate() != null && !details.getStartDate().equals(existingProgram.getStartDate())) {
+			existingProgram.setStartDate(details.getStartDate());
+			isChanged = true;
+		}
+		if (details.getEndDate() != null && !details.getEndDate().equals(existingProgram.getEndDate())) {
+			existingProgram.setEndDate(details.getEndDate());
+			isChanged = true;
+		}
+		if (details.getStatus() != null && !details.getStatus().equals(existingProgram.getStatus())) {
+			existingProgram.setStatus(details.getStatus());
+			isChanged = true;
+		}
+		if (!isChanged) {
+			log.info("Service: No changes detected for Program ID: {}", id);
+			throw new APIException(HttpStatus.BAD_REQUEST, "No changes detected. Program is already up to date.");
+		}
+		log.info("Service: Update successful for ID: {}", id);
+		return mapToCustomDto(programRepo.save(existingProgram));
+	}
+
+	@Override
+	public List<ProgramDTO> getAllPrograms() {
+		log.info("Service: Fetching all program records");
+		List<Program> programs = programRepo.findAll();
+		if (programs.isEmpty()) {
+			log.info("Service: No records found in Database");
+			throw new ResourceNotFoundException("No programs are currently registered.");
+		}
+		return programs.stream().map(this::mapToCustomDto).collect(Collectors.toList());
+	}
+	
+	//Module 6 requirement
+	@Override
+    public List<ProgramDTO> getProgramsByStatus(String status) {
+        // 1. Convert the String to the Enum (handling case sensitivity)
+        Status enumStatus = Status.valueOf(status.toUpperCase());
+        
+        // 2. Pass the Enum to the repository
+        return programRepo.findByStatus(enumStatus).stream()
+                .map(program -> modelMapper.map(program, ProgramDTO.class))
+                .collect(Collectors.toList());
+    }
+}

@@ -6,9 +6,13 @@ import com.project.edugov.model.User;
 
 import java.util.List;
 import java.util.Optional;
-
+import com.project.edugov.controller.IdentityController.UserCreateRequest;
 public interface UserService {
+	// Add this import at the top
+	;
 
+	// Add this method to the interface
+	User registerUser(UserCreateRequest request);
     /**
      * Authenticates a user based on their email and raw password.
      */
@@ -43,4 +47,7 @@ public interface UserService {
      * Updates the status of an existing user.
      */
     User updateUserStatus(Long userId, Status newStatus);
-}
+    
+    
+    void deleteUser(Long userId);
+    }
