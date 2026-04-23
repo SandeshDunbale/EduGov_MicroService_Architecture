@@ -153,6 +153,12 @@ public class GatewayConfig {
 	                    .uri("lb://REGISTRATIONSERVICEEDUGOV")) // Use the ID from Eureka
         		
         		
+        		
+        		.route("document-service-route", r -> r
+        			    .path("/documents/**") 
+        			    .filters(f -> f.filter(authFilter.apply(new AuthenticationFilter.Config()))) 
+        			    .uri("lb://DOCUMENT-SERVICE"))
+        		
         		 // Only UNIV_ADMIN can PATCH (update) a user's status
                 .route("identity-admin-update", r -> r
                         .path("/api/users/status/**")
@@ -192,6 +198,15 @@ public class GatewayConfig {
 	                    .path("/api/auth/**", "/api/users/**", "/api/identity/**") 
 	                    .uri("lb://IDENTITYSERVICEEDUGOV"))
 	            
+                
+                
+                
+                
+                
+                
+                
+             
+                
 	            // NEW: Route for Registration Service
 
 	            .route("registration-service-route", r -> r
