@@ -133,6 +133,12 @@ public class GatewayConfig {
 						}) // Fixed closing brace and paren
 
 						.uri("lb://ACADEMIC-SERVICE"))
+				
+				// 9. NOTIFICATION SERVICE
+//				.route("notification-service-route", r -> r
+//						.path("/api/notifications/**")
+//						.filters(f -> f.filter(authFilter.apply(new AuthenticationFilter.Config()))) 
+//						.uri("lb://NOTIFICATIONSSERVICEEDUGOV"))
 
 				.build();
 
