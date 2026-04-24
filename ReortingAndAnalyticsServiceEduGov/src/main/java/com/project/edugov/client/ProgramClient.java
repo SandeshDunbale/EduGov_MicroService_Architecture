@@ -5,7 +5,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 
 // The name MUST match 'ACADEMIC-SERVICE' from your properties
-@FeignClient(name = "ACADEMIC-SERVICE")
+@FeignClient(name = "ACADEMICPROGRAMSERVICEEDUGOV")
 public interface ProgramClient {
 
     @GetMapping("/api/programs/count")

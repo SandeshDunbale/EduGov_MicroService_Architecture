@@ -1,19 +1,26 @@
 package com.project.edugov.service;
 
-import com.project.edugov.client.*;
-import com.project.edugov.dto.*;
-import com.project.edugov.dto.RemoteResearchAndGrantDto.GrantApplicationDto;
-import com.project.edugov.dto.RemoteResearchAndGrantDto.GrantDto;
-import com.project.edugov.exception.ResourceNotFoundException;
-import com.project.edugov.model.ComplianceRecord;
-import com.project.edugov.repository.ComplianceRepository;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Service;
-
 import java.time.LocalDate;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
+import java.math.BigDecimal;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+import com.project.edugov.client.RemoteProgramClient;
+import com.project.edugov.client.RemoteResearchAndGrantServiceClient;
+import com.project.edugov.client.RemoteStudentClient;
+import com.project.edugov.client.RemoteUserClient;
+import com.project.edugov.dto.ComplianceRecordDTO;
+import com.project.edugov.dto.RemoteProgramDto;
+import com.project.edugov.dto.RemoteResearchAndGrantDto.GrantApplicationDto;
+import com.project.edugov.dto.RemoteResearchAndGrantDto.GrantDto;
+import com.project.edugov.dto.RemoteStudentDto;
+import com.project.edugov.dto.RemoteUserDto;
+import com.project.edugov.exception.ResourceNotFoundException;
+import com.project.edugov.model.ComplianceRecord;
+import com.project.edugov.repository.ComplianceRepository;
 
 @Service
 public class ComplianceServiceImpl implements ComplianceService {
@@ -61,9 +68,17 @@ public class ComplianceServiceImpl implements ComplianceService {
         List<GrantDto> allGrants = researchAndGrantClient.getAllGrants();
         if (allGrants != null) {
             allGrants.forEach(grant -> {
-                GrantApplicationDto app = researchAndGrantClient.getGrantApplicationByProjectId(grant.getProject().getProjectId());
-                if (app != null && grant.getAmount().compareTo(app.getRequestedAmount()) > 0) {
-                    saveInternalCompliance(grant.getProject().getProjectId(), "PROJECT", "Over-funding detected.", officer);
+                // FIXED: Call getProjectId() directly on the grant
+                GrantApplicationDto app = researchAndGrantClient.getGrantApplicationByProjectId(grant.getProjectId());
+                
+                // FIXED: Added null checks for safety and converted Double to BigDecimal for comparison
+                if (app != null && grant.getAmount() != null && app.getRequestedAmount() != null) {
+                    BigDecimal grantAmount = BigDecimal.valueOf(grant.getAmount());
+                    
+                    if (grantAmount.compareTo(app.getRequestedAmount()) > 0) {
+                        // FIXED: Call getProjectId() directly here as well
+                        saveInternalCompliance(grant.getProjectId(), "PROJECT", "Over-funding detected.", officer);
+                    }
                 }
             });
         }
