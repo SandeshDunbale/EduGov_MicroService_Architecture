@@ -10,6 +10,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.project.edugov.client.FacultyClient;
+import com.project.edugov.client.NotificationClient;
 import com.project.edugov.client.UserClient;
 import com.project.edugov.dto.FacultyMinimalDTO;
 import com.project.edugov.dto.GrantApplicationDTO;
@@ -38,11 +39,12 @@ public class GrantServiceImpl implements GrantService {
 	private final GrantRepository grantRepository;
 	private final ResearchProjectRepository projectRepository;
 	private final ModelMapper modelMapper;
-	//private final NotificationService notificationService;
+	
 	
 	// CHANGED: Feign Clients instead of Repositories!
 	private final UserClient userClient;
 	private final FacultyClient facultyClient;
+	private final NotificationClient notificationClient;
 
 	@Override
 	@Transactional
@@ -80,20 +82,20 @@ public class GrantServiceImpl implements GrantService {
 		}
 
 		// CHANGED: Network call to User Microservice to get all PMs
-//		try {
-//			List<UserExternalDTO> programManagers = userClient.getUsersByRole("PROG_MANAGER");
-//			for (UserExternalDTO pm : programManagers) {
-//				notificationService.createNotification(
-//						pm.getUserId(),
-//						finalApp.getApplicationID(),
-//						"New Grant Application submitted for Project: " + project.getTitle(),
-//						"GRANTS",
-//						pm.getEmail()
-//				);
-//			}
-//		} catch (Exception e) {
-//			log.warn("Could not fetch Program Managers from User Service for notifications.");
-//		}
+		try {
+			List<UserExternalDTO> programManagers = userClient.getUsersByRole("PROG_MANAGER");
+			for (UserExternalDTO pm : programManagers) {
+				notificationClient.sendNotification(
+						pm.getUserId(),
+						finalApp.getApplicationID(),
+						"New Grant Application submitted for Project: " + project.getTitle(),
+						"GRANTS",
+						pm.getEmail()
+				);
+			}
+		} catch (Exception e) {
+			log.warn("Could not fetch Program Managers from User Service for notifications.");
+		}
 
 		GrantApplicationDTO responseDTO = modelMapper.map(finalApp, GrantApplicationDTO.class);
 
@@ -130,13 +132,13 @@ public class GrantServiceImpl implements GrantService {
 		ResearchProject project = app.getProject();
 
 		// Fetch the faculty email for notifications using Feign
-//		String facultyEmail = null;
-//		try {
-//			FacultyMinimalDTO facultyDTO = facultyClient.getFacultyById(project.getFacultyId());
-//			facultyEmail = facultyDTO.getEmail();
-//		} catch (Exception e) {
-//			log.warn("Could not fetch Faculty details for notifications.");
-//		}
+		String facultyEmail = null;
+		try {
+			FacultyMinimalDTO facultyDTO = facultyClient.getFacultyById(project.getFacultyId());
+			facultyEmail = facultyDTO.getEmail();
+		} catch (Exception e) {
+			log.warn("Could not fetch Faculty details for notifications.");
+		}
 
 		if (decision == GrantStatus.UNDER_REVIEW) {
 			app.setStatus(GrantApplicationStatus.UNDER_REVIEW);
@@ -162,13 +164,13 @@ public class GrantServiceImpl implements GrantService {
 			applicationRepository.save(app);
 			Grant savedGrant = grantRepository.save(grant);
 
-//			if (facultyEmail != null) {
-//				notificationService.createNotification(
-//						project.getFacultyId(), app.getApplicationID(), 
-//						"Your grant application for '" + project.getTitle() + "' has been APPROVED.", 
-//						"GRANTS", facultyEmail
-//				);
-//			}
+			if (facultyEmail != null) {
+				notificationClient.sendNotification(
+						project.getFacultyId(), app.getApplicationID(), 
+						"Your grant application for '" + project.getTitle() + "' has been APPROVED.", 
+						"GRANTS", facultyEmail
+				);
+			}
 
 			GrantResponseDTO response = modelMapper.map(savedGrant, GrantResponseDTO.class);
 			response.setApprovedByRole(programManager.getRole()); // Attach Role from Network call
@@ -181,13 +183,13 @@ public class GrantServiceImpl implements GrantService {
 			projectRepository.save(project);
 			applicationRepository.save(app);
 
-//			if (facultyEmail != null) {
-//				notificationService.createNotification(
-//						project.getFacultyId(), app.getApplicationID(),
-//						"Your grant application for '" + project.getTitle() + "' has been REJECTED.",
-//						"GRANTS", facultyEmail
-//				);
-//			}
+			if (facultyEmail != null) {
+				notificationClient.sendNotification(
+						project.getFacultyId(), app.getApplicationID(),
+						"Your grant application for '" + project.getTitle() + "' has been REJECTED.",
+						"GRANTS", facultyEmail
+				);
+			}
 
 			GrantResponseDTO response = modelMapper.map(app, GrantResponseDTO.class);
 			response.setApprovedByRole(programManager.getRole()); // Attach Role from Network call
@@ -266,5 +268,33 @@ public class GrantServiceImpl implements GrantService {
 					// 3. Return the enriched DTO to the stream
 					return dto;
 				}).collect(Collectors.toList());
+	}
+	
+	
+	//Module 6 Requirement
+	@Override
+	public List<GrantApplicationDTO> getGrantApplicationsByStatuses(List<String> statuses) {
+		// Convert String statuses from the request into your Enum
+		List<GrantApplicationStatus> enumStatuses = statuses.stream()
+				.map(GrantApplicationStatus::valueOf)
+				.collect(Collectors.toList());
+
+		return applicationRepository.findByStatusIn(enumStatuses).stream()
+				.map(app -> modelMapper.map(app, GrantApplicationDTO.class))
+				.collect(Collectors.toList());
+	}
+
+	@Override
+	public GrantApplicationDTO getGrantApplicationByProjectId(Long projectId) {
+		GrantApplication app = applicationRepository.findByProject_ProjectId(projectId)
+				.orElseThrow(() -> new ResourceNotFoundException("Application not found for project: " + projectId));
+		return modelMapper.map(app, GrantApplicationDTO.class);
+	}
+
+	@Override
+	public List<GrantResponseDTO> getAllGrants() {
+		return grantRepository.findAll().stream()
+				.map(grant -> modelMapper.map(grant, GrantResponseDTO.class))
+				.collect(Collectors.toList());
 	}
 }

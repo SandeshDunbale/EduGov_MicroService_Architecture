@@ -87,19 +87,4 @@ public class DocumentController {
 
         return ResponseEntity.ok(response);
     }
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
 }

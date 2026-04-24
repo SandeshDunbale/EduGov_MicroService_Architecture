@@ -100,4 +100,24 @@ public class GrantController {
 		log.info("API Hit: GET /api/grants/project/{} | Fetching grant details", projectId);
 		return ResponseEntity.ok(grantService.getGrantByProjectId(projectId));
 	}
+	
+	
+	//Module 6 Requirement
+	@GetMapping("/applications/status")
+	public ResponseEntity<List<GrantApplicationDTO>> getApplicationsByStatus(@RequestParam("status") List<String> statuses) {
+		log.info("API Hit: GET /api/grants/applications/status | Statuses: {}", statuses);
+		return ResponseEntity.ok(grantService.getGrantApplicationsByStatuses(statuses));
+	}
+
+	@GetMapping("/applications/project/{projectId}")
+	public ResponseEntity<GrantApplicationDTO> getApplicationByProjectId(@PathVariable Long projectId) {
+		log.info("API Hit: GET /api/grants/applications/project/{}", projectId);
+		return ResponseEntity.ok(grantService.getGrantApplicationByProjectId(projectId));
+	}
+
+	@GetMapping("/all")
+	public ResponseEntity<List<GrantResponseDTO>> getAllGrants() {
+		log.info("API Hit: GET /api/grants/all");
+		return ResponseEntity.ok(grantService.getAllGrants());
+	}
 }

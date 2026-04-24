@@ -1,7 +1,15 @@
 package com.project.edugov.service;
 
+import java.util.List;
+import java.util.Optional;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Service;
+
+import com.project.edugov.clients.NotificationClient;
 import com.project.edugov.controller.IdentityController;
-import com.project.edugov.controller.IdentityController.UserCreateRequest;
 import com.project.edugov.exception.AccountNotActiveException;
 import com.project.edugov.exception.InvalidCredentialsException;
 import com.project.edugov.exception.ResourceNotFoundException;
@@ -9,13 +17,6 @@ import com.project.edugov.model.Role;
 import com.project.edugov.model.Status;
 import com.project.edugov.model.User;
 import com.project.edugov.repository.UserRepository;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.stereotype.Service;
-
-import java.util.List;
-import java.util.Optional;
 
 @Service
 public class UserServiceImpl implements UserService {
@@ -24,10 +25,13 @@ public class UserServiceImpl implements UserService {
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
-    
-    public UserServiceImpl(UserRepository userRepository, PasswordEncoder passwordEncoder) {
+    private final NotificationClient notificationClient; // 1. Add the client
+
+    // 2. Inject it via the constructor
+    public UserServiceImpl(UserRepository userRepository, PasswordEncoder passwordEncoder, NotificationClient notificationClient) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
+        this.notificationClient = notificationClient;
     }
 
     @Override
@@ -55,6 +59,19 @@ public class UserServiceImpl implements UserService {
         
         // Microservice decoupled logging (No direct NotificationService call)
         logger.info("ACTION: Password updated for user. (Ready for Kafka event)");
+        try {
+            notificationClient.sendNotification(
+                    user.getUserId(), // userId
+                    user.getUserId(), // entityId (we can just use userId here)
+                    "Your password has been successfully updated. If you did not make this change, please contact support.", 
+                    "SECURITY_ALERT", // Category
+                    user.getEmail()   // Email
+            );
+        } catch (Exception e) {
+            logger.error("Failed to send password update notification: " + e.getMessage());
+            // We catch the exception so that if the Notification Service is down,
+            // the user's password update still succeeds!
+        }
     }
 
     // Keep your other methods here exactly as they were: 
