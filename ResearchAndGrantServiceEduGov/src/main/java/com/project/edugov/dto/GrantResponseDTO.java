@@ -16,4 +16,5 @@ public class GrantResponseDTO {
     private GrantStatus status;
    // private String approvedByName; 
     private String approvedByRole;
+    private Long projectId; // Add this line
 }

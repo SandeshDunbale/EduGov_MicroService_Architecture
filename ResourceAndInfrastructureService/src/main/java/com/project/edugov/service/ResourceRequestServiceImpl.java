@@ -3,17 +3,24 @@ package com.project.edugov.service;
 import java.time.Instant;
 import java.util.List;
 
-import lombok.extern.slf4j.Slf4j;
-import jakarta.persistence.EntityNotFoundException;
-
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.project.edugov.dto.UserDTO;
-import com.project.edugov.feign.UserClient;
 import com.project.edugov.exception.RoleMismatchException;
-import com.project.edugov.model.*;
-import com.project.edugov.repository.*;
+import com.project.edugov.feign.NotificationClient;
+import com.project.edugov.feign.UserClient;
+import com.project.edugov.model.Infrastructure;
+import com.project.edugov.model.RequestItemType;
+import com.project.edugov.model.RequestStatus;
+import com.project.edugov.model.Resource;
+import com.project.edugov.model.ResourceRequest;
+import com.project.edugov.repository.InfrastructureRepository;
+import com.project.edugov.repository.ResourceRepository;
+import com.project.edugov.repository.ResourceRequestRepository;
+
+import jakarta.persistence.EntityNotFoundException;
+import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 @Service
@@ -24,27 +31,24 @@ public class ResourceRequestServiceImpl implements ResourceRequestService {
     private final ResourceRepository resourceRepo;
     private final InfrastructureRepository infraRepo;
 
-    /*
-     * ❌ MONOLITHIC SERVICES (COMMENTED FOR MICROSERVICE)
-     *
-     * private final NotificationService notificationService;
-     * private final AuditService auditService;
-     */
-
     private final ResourceService resourceService;
     private final InfrastructureService infrastructureService;
 
-    // ✅ MICROservice dependency
+    // ✅ Microservice dependencies
     private final UserClient userClient;
+    private final NotificationClient notificationClient;
 
+    // ----------------------------------------------------
+    // CONSTRUCTOR
+    // ----------------------------------------------------
     public ResourceRequestServiceImpl(
             ResourceRequestRepository requestRepo,
             ResourceRepository resourceRepo,
             InfrastructureRepository infraRepo,
             ResourceService resourceService,
             InfrastructureService infrastructureService,
-            UserClient userClient
-            /* NotificationService notificationService */
+            UserClient userClient,
+            NotificationClient notificationClient
     ) {
         this.requestRepo = requestRepo;
         this.resourceRepo = resourceRepo;
@@ -52,13 +56,13 @@ public class ResourceRequestServiceImpl implements ResourceRequestService {
         this.resourceService = resourceService;
         this.infrastructureService = infrastructureService;
         this.userClient = userClient;
-        // this.notificationService = notificationService;
+        this.notificationClient = notificationClient;
 
-        log.info("ResourceRequestServiceImpl initialized");
+        log.info("✅ ResourceRequestServiceImpl initialized");
     }
 
     // ----------------------------------------------------
-    // ROLE VALIDATION LOGIC (STUDENT → RESOURCE, FACULTY → INFRA)
+    // ROLE VALIDATION
     // ----------------------------------------------------
     private void validateRole(Long userId, RequestItemType type) {
 
@@ -69,13 +73,17 @@ public class ResourceRequestServiceImpl implements ResourceRequestService {
         }
 
         if (type == RequestItemType.RESOURCE &&
-            !"STUDENT".equalsIgnoreCase(user.role())) {
-            throw new RoleMismatchException("Only STUDENT can submit RESOURCE requests.");
+                !"STUDENT".equalsIgnoreCase(user.role())) {
+            throw new RoleMismatchException(
+                    "Only STUDENT can submit RESOURCE requests."
+            );
         }
 
         if (type == RequestItemType.INFRASTRUCTURE &&
-            !"FACULTY".equalsIgnoreCase(user.role())) {
-            throw new RoleMismatchException("Only FACULTY can submit INFRASTRUCTURE requests.");
+                !"FACULTY".equalsIgnoreCase(user.role())) {
+            throw new RoleMismatchException(
+                    "Only FACULTY can submit INFRASTRUCTURE requests."
+            );
         }
     }
 
@@ -88,22 +96,17 @@ public class ResourceRequestServiceImpl implements ResourceRequestService {
             Long resourceId,
             int quantity) {
 
-        log.info("Submitting Resource Request → requesterId={}, resourceId={}, qty={}",
-                requesterUserId, resourceId, quantity);
-
         if (quantity <= 0) {
-            throw new IllegalArgumentException(
-                    "Quantity must be > 0.");
+            throw new IllegalArgumentException("Quantity must be greater than 0");
         }
 
         validateRole(requesterUserId, RequestItemType.RESOURCE);
 
         Resource resource = resourceRepo.findById(resourceId)
                 .orElseThrow(() ->
-                        new EntityNotFoundException(
-                                "Resource not found: " + resourceId));
+                        new EntityNotFoundException("Resource not found"));
 
-        ResourceRequest rr = ResourceRequest.builder()
+        ResourceRequest request = ResourceRequest.builder()
                 .requesterUserId(requesterUserId)
                 .resource(resource)
                 .itemType(RequestItemType.RESOURCE)
@@ -111,15 +114,17 @@ public class ResourceRequestServiceImpl implements ResourceRequestService {
                 .status(RequestStatus.SUBMITTED)
                 .build();
 
-        ResourceRequest saved = requestRepo.save(rr);
+        ResourceRequest saved = requestRepo.save(request);
 
-        /*
-         * ❌ MONOLITHIC NOTIFICATION (COMMENTED)
-         *
-         * String message = requester.getName()
-         *         + " submitted a RESOURCE request.";
-         * notifyProgramManagers(saved.getRequestId(), message);
-         */
+        // ✅ NOTIFICATION
+        UserDTO requester = userClient.getUserById(requesterUserId);
+        notificationClient.sendNotification(
+                requesterUserId,
+                saved.getRequestId(),
+                "Resource request submitted successfully",
+                "RESOURCE_REQUEST",
+                requester.email()
+        );
 
         return saved;
     }
@@ -136,82 +141,66 @@ public class ResourceRequestServiceImpl implements ResourceRequestService {
 
         Infrastructure infra = infraRepo.findById(infraId)
                 .orElseThrow(() ->
-                        new EntityNotFoundException(
-                                "Infrastructure not found: " + infraId));
+                        new EntityNotFoundException("Infrastructure not found"));
 
-        ResourceRequest rr = ResourceRequest.builder()
+        ResourceRequest request = ResourceRequest.builder()
                 .requesterUserId(requesterUserId)
                 .infrastructure(infra)
                 .itemType(RequestItemType.INFRASTRUCTURE)
                 .status(RequestStatus.SUBMITTED)
                 .build();
 
-        ResourceRequest saved = requestRepo.save(rr);
+        ResourceRequest saved = requestRepo.save(request);
 
-        /*
-         * ❌ MONOLITHIC NOTIFICATION (COMMENTED)
-         *
-         * String message = requester.getName()
-         *         + " submitted an INFRASTRUCTURE request.";
-         * notifyProgramManagers(saved.getRequestId(), message);
-         */
+        // ✅ NOTIFICATION
+        UserDTO requester = userClient.getUserById(requesterUserId);
+        notificationClient.sendNotification(
+                requesterUserId,
+                saved.getRequestId(),
+                "Infrastructure request submitted successfully",
+                "INFRA_REQUEST",
+                requester.email()
+        );
 
         return saved;
     }
 
     // ----------------------------------------------------
-    // SEND NOTIFICATION TO PROGRAM MANAGERS (MONOLITHIC)
-    // ----------------------------------------------------
-    /*
-    private void notifyProgramManagers(Long reqId, String message) {
-
-        List<User> managers = userRepo.findByRole(Role.PROG_MANAGER);
-
-        for (User pm : managers) {
-            notificationService.createNotification(
-                    pm.getUserId(),
-                    reqId,
-                    message,
-                    "REQUEST",
-                    pm.getEmail()
-            );
-        }
-    }
-    */
-
-    // ----------------------------------------------------
     // APPROVE REQUEST
     // ----------------------------------------------------
     @Override
-    public ResourceRequest approve(
-            Long requestId,
-            Long approverUserId) {
+    public ResourceRequest approve(Long requestId, Long approverUserId) {
 
-        userClient.getUserById(approverUserId);
+        userClient.getUserById(approverUserId); // validate approver exists
 
-        ResourceRequest rr = getById(requestId);
+        ResourceRequest request = getById(requestId);
 
-        if (rr.getItemType() == RequestItemType.RESOURCE) {
+        if (request.getItemType() == RequestItemType.RESOURCE) {
             resourceService.allocate(
-                    rr.getResource().getResourceId(),
-                    rr.getQuantity());
+                    request.getResource().getResourceId(),
+                    request.getQuantity());
         } else {
             infrastructureService.markInUse(
-                    rr.getInfrastructure().getInfraId());
+                    request.getInfrastructure().getInfraId());
         }
 
-        rr.setStatus(RequestStatus.APPROVED);
-        rr.setApprovedByUserId(approverUserId);
-        rr.setDecisionAt(Instant.now());
+        request.setStatus(RequestStatus.APPROVED);
+        request.setApprovedByUserId(approverUserId);
+        request.setDecisionAt(Instant.now());
 
-        /*
-         * ❌ MONOLITHIC NOTIFICATION + AUDIT (COMMENTED)
-         *
-         * notificationService.createNotification(...)
-         * auditService.logAction(...)
-         */
+        ResourceRequest saved = requestRepo.save(request);
 
-        return requestRepo.save(rr);
+        // ✅ NOTIFICATION
+        UserDTO requester = userClient.getUserById(request.getRequesterUserId());
+        notificationClient.sendNotification(
+                requester.userId(),
+                saved.getRequestId(),
+                "Your request has been APPROVED",
+                "REQUEST_DECISION",
+                requester.email()
+        );
+
+        return saved;
     }
 
     // ----------------------------------------------------
@@ -225,23 +214,29 @@ public class ResourceRequestServiceImpl implements ResourceRequestService {
 
         userClient.getUserById(approverUserId);
 
-        ResourceRequest rr = getById(requestId);
+        ResourceRequest request = getById(requestId);
 
-        rr.setStatus(RequestStatus.DECLINED);
-        rr.setApprovedByUserId(approverUserId);
-        rr.setDecisionAt(Instant.now());
+        request.setStatus(RequestStatus.DECLINED);
+        request.setApprovedByUserId(approverUserId);
+        request.setDecisionAt(Instant.now());
 
-        /*
-         * ❌ MONOLITHIC NOTIFICATION (COMMENTED)
-         *
-         * notificationService.createNotification(...)
-         */
+        ResourceRequest saved = requestRepo.save(request);
 
-        return requestRepo.save(rr);
+        // ✅ NOTIFICATION
+        UserDTO requester = userClient.getUserById(request.getRequesterUserId());
+        notificationClient.sendNotification(
+                requester.userId(),
+                saved.getRequestId(),
+                "Your request was DECLINED: " + reason,
+                "REQUEST_DECISION",
+                requester.email()
+        );
+
+        return saved;
     }
 
     // ----------------------------------------------------
-    // LIST / GET
+    // READ OPERATIONS
     // ----------------------------------------------------
     @Override
     @Transactional(readOnly = true)
@@ -260,8 +255,7 @@ public class ResourceRequestServiceImpl implements ResourceRequestService {
     public ResourceRequest getById(Long requestId) {
         return requestRepo.findById(requestId)
                 .orElseThrow(() ->
-                        new EntityNotFoundException(
-                                "Request not found"));
+                        new EntityNotFoundException("Request not found"));
     }
 
     // ----------------------------------------------------
@@ -274,22 +268,12 @@ public class ResourceRequestServiceImpl implements ResourceRequestService {
 
         userClient.getUserById(reviewerUserId);
 
-        ResourceRequest rr = getById(requestId);
+        ResourceRequest request = getById(requestId);
 
-        rr.setStatus(RequestStatus.IN_REVIEW);
-        rr.setApprovedByUserId(reviewerUserId);
-        rr.setDecisionAt(Instant.now());
+        request.setStatus(RequestStatus.IN_REVIEW);
+        request.setApprovedByUserId(reviewerUserId);
+        request.setDecisionAt(Instant.now());
 
-        /*
-         * ❌ MONOLITHIC AUDIT (COMMENTED)
-         *
-         * auditService.logAction(
-         *     reviewerUserId,
-         *     "REQUEST_IN_REVIEW",
-         *     requestId
-         * );
-         */
-
-        return requestRepo.save(rr);
+        return requestRepo.save(request);
     }
 }

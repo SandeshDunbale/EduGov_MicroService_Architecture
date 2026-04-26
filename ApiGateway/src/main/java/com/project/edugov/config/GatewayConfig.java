@@ -21,11 +21,11 @@ public class GatewayConfig {
     public RouteLocator customRouteLocator(RouteLocatorBuilder builder) {
         return builder.routes()
 
-                // ==========================================
+        		// ==========================================
                 // 1. PUBLIC ROUTES (No Auth Filter)
                 // ==========================================
                 .route("public-auth", r -> r
-                        .path("/api/auth/**", "/api/users/login", "/api/users/recoverEmail", "/api/users/resetPassword", "/students/register", "/faculty/register")
+                        .path("/api/auth/**", "/api/users/login", "/api/users/recoverEmail", "/api/users/resetPassword", "/api/identity/register")
                         .uri("lb://IDENTITYSERVICEEDUGOV")) // Assuming registration hits identity first
 
                 // ==========================================
@@ -61,35 +61,62 @@ public class GatewayConfig {
                         })
                         .uri("lb://RESEARCHANDGRANTSERVICEEDUGOV"))
 
+             // ==========================================
+                // 3. REGISTRATION SERVICE (Fixed)
                 // ==========================================
-                // 3. REGISTRATION SERVICE
-                // ==========================================
-                // Faculty/Student self-updates
-                .route("registration-self-update-student", r -> r
-                        .method("PUT").and().path("/students/*/update")
+
+                // 3a. PUBLIC REGISTRATION (No token required)
+                // Maps directly to your @PostMapping("/register")
+                .route("registration-public", r -> r
+                        .path("/students/register", "/faculty/register")
+                        .uri("lb://REGISTRATIONSERVICEEDUGOV"))
+
+                // 3b. STUDENT & FACULTY SELF-UPDATE
+                // Maps to @PutMapping("/{id}/update")
+                .route("registration-self-update", r -> r
+                        .method("PUT").and().path("/students/*/update", "/faculty/*/update")
                         .filters(f -> {
                             AuthenticationFilter.Config config = new AuthenticationFilter.Config();
-                            config.setAllowedRoles(List.of("STUDENT", "GOVT_AUDITOR"));
+                            config.setAllowedRoles(List.of("STUDENT", "FACULTY", "UNIV_ADMIN"));
                             return f.filter(authFilter.apply(config));
                         })
                         .uri("lb://REGISTRATIONSERVICEEDUGOV"))
 
-                // Admin Management
+                // 3c. ADMIN ACTIONS (Approve, Decline, Delete, View All, View Status)
+                // Maps to @PatchMapping, @DeleteMapping, and Admin-only @GetMappings
                 .route("registration-admin-manage", r -> r
-                        .path("/students/**", "/faculty/**") // Catch all other methods (GET, PATCH, DELETE)
+                        .path(
+                            "/students/status/**", "/students/all", 
+                            "/students/*/approve", "/students/*/decline", "/students/*/delete", 
+                            "/faculty/status/**", 
+                            "/faculty/*/approve", "/faculty/*/decline", "/faculty/*/delete"
+                        )
                         .filters(f -> {
                             AuthenticationFilter.Config config = new AuthenticationFilter.Config();
-                            config.setAllowedRoles(List.of("UNIV_ADMIN", "PROG_MANAGER", "GOVT_AUDITOR"));
+                            config.setAllowedRoles(List.of("UNIV_ADMIN", "PROG_MANAGER"));
                             return f.filter(authFilter.apply(config));
                         })
                         .uri("lb://REGISTRATIONSERVICEEDUGOV"))
 
-                // ==========================================
+                // 3d. GENERAL VIEW (Get by ID)
+                // Maps to @GetMapping("/{id}")
+                .route("registration-general-view", r -> r
+                        .method("GET").and().path("/students/*", "/faculty/*")
+                        .filters(f -> {
+                            AuthenticationFilter.Config config = new AuthenticationFilter.Config();
+                            // Allows users to view profiles, and admins to view them as well
+                            config.setAllowedRoles(List.of("STUDENT", "FACULTY", "UNIV_ADMIN", "PROG_MANAGER", "GOVT_AUDITOR"));
+                            return f.filter(authFilter.apply(config));
+                        })
+                        .uri("lb://REGISTRATIONSERVICEEDUGOV"))
+
+             // ==========================================
                 // 4. ACADEMIC PROGRAM SERVICE
                 // ==========================================
-                // Admin creates courses/programs
+                
+                // 4a. Admin modifies courses, programs, and updates enrollments
                 .route("academic-admin-modify", r -> r
-                        .method("POST", "PATCH").and().path("/programs/**", "/courses/**")
+                        .method("POST", "PATCH", "PUT").and().path("/programs/**", "/courses/**", "/enrollments/update/**")
                         .filters(f -> {
                             AuthenticationFilter.Config config = new AuthenticationFilter.Config();
                             config.setAllowedRoles(List.of("UNIV_ADMIN"));
@@ -97,7 +124,27 @@ public class GatewayConfig {
                         })
                         .uri("lb://ACADEMICPROGRAMSERVICEEDUGOV"))
                 
-                // General viewing
+                // 4b. Student applies for a course
+                .route("academic-student-enroll", r -> r
+                        .method("POST").and().path("/enrollments/apply/**")
+                        .filters(f -> {
+                            AuthenticationFilter.Config config = new AuthenticationFilter.Config();
+                            config.setAllowedRoles(List.of("STUDENT"));
+                            return f.filter(authFilter.apply(config));
+                        })
+                        .uri("lb://ACADEMICPROGRAMSERVICEEDUGOV"))
+                
+                // 4c. Admin viewing enrollments
+                .route("academic-admin-view-enrollments", r -> r
+                        .method("GET").and().path("/enrollments/all", "/enrollments/status/**,/enrollments/**")
+                        .filters(f -> {
+                            AuthenticationFilter.Config config = new AuthenticationFilter.Config();
+                            config.setAllowedRoles(List.of("UNIV_ADMIN"));
+                            return f.filter(authFilter.apply(config));
+                        })
+                        .uri("lb://ACADEMICPROGRAMSERVICEEDUGOV"))
+
+                // 4d. General viewing for programs and courses
                 .route("academic-general-view", r -> r
                         .method("GET").and().path("/programs/**", "/courses/**")
                         .filters(f -> {
@@ -203,13 +250,56 @@ public class GatewayConfig {
                 
              // ==========================================
                 // 8. NOTIFICATION SERVICE
-             // ==========================================
+                // ==========================================
+                
+                // 8a. ADMIN ONLY: View Master List of All Notifications
+                // Matches exact path GET /api/notifications
+                .route("notification-admin-view", r -> r
+                        .method("GET").and().path("/api/notifications")
+                        .filters(f -> {
+                            AuthenticationFilter.Config config = new AuthenticationFilter.Config();
+                            config.setAllowedRoles(List.of("UNIV_ADMIN", "PROG_MANAGER"));
+                            return f.filter(authFilter.apply(config));
+                        })
+                        .uri("lb://NOTIFICATIONSSERVICEEDUGOV"))
+
+                // 8b. GENERAL USERS: View their own inbox, mark as read, etc.
+                // Matches /api/notifications/user/**, /api/notifications/read/**, etc.
                 .route("notification-service-route", r -> r
                         .path("/api/notifications/**")
                         .filters(f -> f.filter(authFilter.apply(new AuthenticationFilter.Config()))) 
                         .uri("lb://NOTIFICATIONSSERVICEEDUGOV"))
                 
                 
+                // ==========================================
+                // 9. DOCUMENT SERVICE
+                // ==========================================
+                
+                // 9a. Student and Faculty Uploading Documents
+                .route("document-upload-route", r -> r
+                        .method("POST").and().path("/api/documents/**")
+                        .filters(f -> {
+                            AuthenticationFilter.Config config = new AuthenticationFilter.Config();
+                            config.setAllowedRoles(List.of("STUDENT", "FACULTY", "UNIV_ADMIN"));
+                            return f.filter(authFilter.apply(config));
+                        })
+                        .uri("lb://DOCUMENT-SERVICE")) // Matches spring.application.name exactly!
+
+                // 9b. Admins Verifying Documents
+                .route("document-verify-route", r -> r
+                        .method("PATCH").and().path("/api/documents/verify/**")
+                        .filters(f -> {
+                            AuthenticationFilter.Config config = new AuthenticationFilter.Config();
+                            config.setAllowedRoles(List.of("UNIV_ADMIN", "PROG_MANAGER", "COMPLIANCE_OFFICER"));
+                            return f.filter(authFilter.apply(config));
+                        })
+                        .uri("lb://DOCUMENT-SERVICE"))
+
+                // 9c. General Viewing (Users checking their own docs)
+                .route("document-view-route", r -> r
+                        .method("GET").and().path("/api/documents/**")
+                        .filters(f -> f.filter(authFilter.apply(new AuthenticationFilter.Config()))) 
+                        .uri("lb://DOCUMENT-SERVICE")) 
                 .build();
     }
 }

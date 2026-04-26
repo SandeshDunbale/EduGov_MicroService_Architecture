@@ -1,9 +1,10 @@
-package com.project.edugov.feign;
+package com.project.edugov.client;
 
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 
+// The name must match the spring.application.name of your Notification Service in Eureka
 @FeignClient(name = "NOTIFICATIONSSERVICEEDUGOV")
 public interface NotificationClient {
 
