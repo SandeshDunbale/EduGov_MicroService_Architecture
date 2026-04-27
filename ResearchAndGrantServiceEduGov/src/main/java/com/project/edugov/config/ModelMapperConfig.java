@@ -34,10 +34,10 @@ public class ModelMapperConfig {
 		});
 
 		// Map Project details to GrantApplicationDTO
-		modelMapper.typeMap(GrantApplication.class, GrantApplicationDTO.class).addMappings(mapper -> {
-			// WE KEPT THIS: Because ResearchProject is still inside your microservice
-			mapper.map(src -> src.getProject().getProjectId(), GrantApplicationDTO::setProjectId);
-			mapper.map(src -> src.getProject().getTitle(), GrantApplicationDTO::setProjectTitle);
+		// Map Project Title AND ID to GrantResponseDTO
+		modelMapper.typeMap(Grant.class, GrantResponseDTO.class).addMappings(mapper -> {
+		    mapper.map(src -> src.getProject().getProjectId(), GrantResponseDTO::setProjectId); // ADD THIS LINE
+		    mapper.map(src -> src.getProject().getTitle(), GrantResponseDTO::setProjectTitle);
 		});
 		
 		return modelMapper;

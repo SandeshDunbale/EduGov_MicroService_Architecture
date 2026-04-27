@@ -6,7 +6,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 
 import com.project.edugov.dto.ProgramDTO;
 
-@FeignClient(name = "ACADEMIC-SERVICE") // ✅ MATCHES EUREKA NAME
+@FeignClient(name = "ACADEMICPROGRAMSERVICEEDUGOV") // ✅ MATCHES EUREKA NAME
 public interface ProgramClient {
 	@GetMapping("/programs/{id}") // Remove /api if the controller doesn't use it
 	ProgramDTO getProgramById(@PathVariable("id") Long id);

@@ -2,8 +2,13 @@ package com.project.edugov;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
-
 import org.springframework.cloud.openfeign.EnableFeignClients;
+import org.springframework.context.annotation.Bean;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
+
+import feign.RequestInterceptor;
+import jakarta.servlet.http.HttpServletRequest;
 
 
 //@EnableDiscoveryClient // Tells this app to register itself with your Eureka Server (Port 8001)
@@ -14,5 +19,23 @@ public class ResearchAndGrantServiceEduGovApplication {
 	public static void main(String[] args) {
 		SpringApplication.run(ResearchAndGrantServiceEduGovApplication.class, args);
 	}
-
+	
+	@Bean
+    public RequestInterceptor requestInterceptor() {
+        return requestTemplate -> {
+            ServletRequestAttributes attributes = 
+                (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
+            
+            if (attributes != null) {
+                HttpServletRequest request = attributes.getRequest();
+                String authHeader = request.getHeader("Authorization");
+                
+                if (authHeader != null) {
+                    // This passes the Faculty token to the next microservice
+                    requestTemplate.header("Authorization", authHeader);
+                }
+            }
+        };
+    }
 }
+

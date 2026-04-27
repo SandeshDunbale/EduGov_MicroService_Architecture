@@ -42,23 +42,22 @@ public class SecurityConfig {
         http
             .csrf(csrf -> csrf.disable())
             .authorizeHttpRequests(auth -> auth
+                .requestMatchers(org.springframework.http.HttpMethod.OPTIONS, "/**").permitAll()
                 
-                // 1. STRICTLY PUBLIC ENDPOINTS (No token required)
-                // We map these exactly to match the API Gateway's openApiEndpoints
-                .requestMatchers(
-                        "/api/auth/login", 
-                        "/api/auth/resetPassword", 
-                        "/api/users/recoverEmail",
-                        "/api/identity/register" // Registration must be open so new users can join
-                ).permitAll()
+                // 1. PUBLIC ENDPOINTS
+                .requestMatchers("/api/auth/**", "/api/users/recoverEmail", "/api/identity/register").permitAll()
 
-                // 2. SECURE EVERYTHING ELSE
-                // This forces Spring to check the JWT and evaluate your @PreAuthorize annotations
+                // 2. INTERNAL USER FETCHING (Order matters!)
+                // Match specific sub-paths FIRST
+                .requestMatchers("/api/users/role/**").hasAnyAuthority("UNIV_ADMIN", "ROLE_UNIV_ADMIN", "PROG_MANAGER", "ROLE_PROG_MANAGER")
+                
+                // Match general user paths SECOND
+                .requestMatchers("/api/users/**").hasAnyAuthority("UNIV_ADMIN", "ROLE_UNIV_ADMIN", "FACULTY", "ROLE_FACULTY", "STUDENT", "ROLE_STUDENT")
+
+                // 3. SECURE EVERYTHING ELSE
                 .anyRequest().authenticated()
             )
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-            
-            // Checks the database for Blacklisted (Logged out) tokens
             .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();

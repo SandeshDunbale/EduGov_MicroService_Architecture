@@ -4,12 +4,17 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
 import org.springframework.cloud.openfeign.EnableFeignClients;
-import org.springframework.stereotype.Component;
+
+
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
 import feign.RequestInterceptor;
-import feign.RequestTemplate;
+
+
+import org.springframework.context.annotation.Bean;
+
+
 import jakarta.servlet.http.HttpServletRequest;
 
 @SpringBootApplication 
@@ -22,21 +27,22 @@ public class ComplianceAndGovernanceServiceEduGovApplication {
             ComplianceAndGovernanceServiceEduGovApplication.class, args
         );
     }
-    
-    @Component
-    public class FeignClientInterceptor implements RequestInterceptor {
-        private static final String AUTHORIZATION_HEADER = "Authorization";
 
-        @Override
-        public void apply(RequestTemplate requestTemplate) {
-            ServletRequestAttributes requestAttributes = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
-            if (requestAttributes != null) {
-                HttpServletRequest request = requestAttributes.getRequest();
-                String authHeader = request.getHeader(AUTHORIZATION_HEADER);
+    @Bean
+    public RequestInterceptor requestInterceptor() {
+        return requestTemplate -> {
+            ServletRequestAttributes attributes = 
+                (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
+            
+            if (attributes != null) {
+                HttpServletRequest request = attributes.getRequest();
+                String authHeader = request.getHeader("Authorization");
+                
                 if (authHeader != null) {
-                    requestTemplate.header(AUTHORIZATION_HEADER, authHeader);
+                    requestTemplate.header("Authorization", authHeader);
                 }
             }
-        }
+        };
+    
     }
 }

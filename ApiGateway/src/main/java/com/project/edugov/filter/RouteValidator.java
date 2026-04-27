@@ -23,6 +23,8 @@ public class RouteValidator {
 		    "/api/users/recoverEmail", // <-- FIXED PATH
 		    "/api/auth/resetPassword",
 		    "/eureka",
+		    "/students/register", // <- MUST BE HERE
+		    "/faculty/register",
 		    "/api/identity/register",
 		    "/documents/student/upload", 
 		    "/documents/faculty/upload" 
