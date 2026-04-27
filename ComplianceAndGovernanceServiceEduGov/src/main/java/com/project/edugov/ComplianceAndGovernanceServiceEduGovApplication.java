@@ -29,15 +29,13 @@ public class ComplianceAndGovernanceServiceEduGovApplication {
     }
 
     @Bean
-    public RequestInterceptor requestInterceptor() {
+    public feign.RequestInterceptor requestInterceptor() {
         return requestTemplate -> {
-            ServletRequestAttributes attributes = 
-                (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
-            
+            org.springframework.web.context.request.ServletRequestAttributes attributes = 
+                (org.springframework.web.context.request.ServletRequestAttributes) org.springframework.web.context.request.RequestContextHolder.getRequestAttributes();
             if (attributes != null) {
-                HttpServletRequest request = attributes.getRequest();
+                jakarta.servlet.http.HttpServletRequest request = attributes.getRequest();
                 String authHeader = request.getHeader("Authorization");
-                
                 if (authHeader != null) {
                     requestTemplate.header("Authorization", authHeader);
                 }
