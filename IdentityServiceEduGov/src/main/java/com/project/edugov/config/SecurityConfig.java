@@ -52,7 +52,7 @@ public class SecurityConfig {
                 .requestMatchers("/api/users/role/**").hasAnyAuthority("UNIV_ADMIN", "ROLE_UNIV_ADMIN", "PROG_MANAGER", "ROLE_PROG_MANAGER")
                 
                 // Match general user paths SECOND
-                .requestMatchers("/api/users/**").hasAnyAuthority("UNIV_ADMIN", "ROLE_UNIV_ADMIN", "FACULTY", "ROLE_FACULTY", "STUDENT", "ROLE_STUDENT")
+                .requestMatchers("/api/users/**").hasAnyAuthority("UNIV_ADMIN", "ROLE_UNIV_ADMIN", "FACULTY", "ROLE_FACULTY", "STUDENT", "ROLE_STUDENT","COMPLIANCE_OFFICER","ROLE_COMPLIANCE_OFFICER")
 
                 // 3. SECURE EVERYTHING ELSE
                 .anyRequest().authenticated()
