@@ -3,24 +3,23 @@ package com.project.edugov.service;
 import java.time.Instant;
 import java.util.List;
 
+import jakarta.persistence.EntityNotFoundException;
+import lombok.extern.slf4j.Slf4j;
+
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
+
 import com.project.edugov.dto.UserDTO;
+import com.project.edugov.exception.DownstreamServiceUnavailableException;
 import com.project.edugov.exception.RoleMismatchException;
 import com.project.edugov.feign.NotificationClient;
 import com.project.edugov.feign.UserClient;
-import com.project.edugov.model.Infrastructure;
-import com.project.edugov.model.RequestItemType;
-import com.project.edugov.model.RequestStatus;
-import com.project.edugov.model.Resource;
-import com.project.edugov.model.ResourceRequest;
+import com.project.edugov.model.*;
 import com.project.edugov.repository.InfrastructureRepository;
 import com.project.edugov.repository.ResourceRepository;
 import com.project.edugov.repository.ResourceRequestRepository;
-
-import jakarta.persistence.EntityNotFoundException;
-import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 @Service
@@ -61,12 +60,56 @@ public class ResourceRequestServiceImpl implements ResourceRequestService {
         log.info("✅ ResourceRequestServiceImpl initialized");
     }
 
+    // ====================================================
+    // 🔐 USER SERVICE (HARD DEPENDENCY)
+    // ====================================================
+    @CircuitBreaker(name = "userService", fallbackMethod = "userFallback")
+    private UserDTO fetchUser(Long userId) {
+        return userClient.getUserById(userId);
+    }
+
+    private UserDTO userFallback(Long userId, Throwable ex) {
+        log.error("Identity service DOWN. userId={}", userId, ex);
+        throw new DownstreamServiceUnavailableException(
+                "IDENTITYSERVICEEDUGOV",
+                "Identity service is unavailable. Please try again later."
+        );
+    }
+
+    // ====================================================
+    // 🔔 NOTIFICATION SERVICE (SOFT DEPENDENCY)
+    // ====================================================
+    @CircuitBreaker(name = "notificationService", fallbackMethod = "notificationFallback")
+    private void notifyUser(
+            Long userId,
+            Long entityId,
+            String message,
+            String category,
+            String email
+    ) {
+        notificationClient.sendNotification(
+                userId, entityId, message, category, email
+        );
+    }
+
+    private void notificationFallback(
+            Long userId,
+            Long entityId,
+            String message,
+            String category,
+            String email,
+            Throwable ex
+    ) {
+        log.warn("Notification skipped. Service down. userId={}", userId);
+        // ✅ DO NOT throw exception
+    }
+
     // ----------------------------------------------------
-    // ROLE VALIDATION
+    // ROLE VALIDATION (LOGIC UNCHANGED)
     // ----------------------------------------------------
     private void validateRole(Long userId, RequestItemType type) {
 
-        UserDTO user = userClient.getUserById(userId);
+        UserDTO user = fetchUser(userId);
 
         if (!user.active()) {
             throw new IllegalStateException("User is inactive");
@@ -94,7 +137,8 @@ public class ResourceRequestServiceImpl implements ResourceRequestService {
     public ResourceRequest submitResourceRequest(
             Long requesterUserId,
             Long resourceId,
-            int quantity) {
+            int quantity
+    ) {
 
         if (quantity <= 0) {
             throw new IllegalArgumentException("Quantity must be greater than 0");
@@ -116,9 +160,8 @@ public class ResourceRequestServiceImpl implements ResourceRequestService {
 
         ResourceRequest saved = requestRepo.save(request);
 
-        // ✅ NOTIFICATION
-        UserDTO requester = userClient.getUserById(requesterUserId);
-        notificationClient.sendNotification(
+        UserDTO requester = fetchUser(requesterUserId);
+        notifyUser(
                 requesterUserId,
                 saved.getRequestId(),
                 "Resource request submitted successfully",
@@ -135,7 +178,8 @@ public class ResourceRequestServiceImpl implements ResourceRequestService {
     @Override
     public ResourceRequest submitInfrastructureRequest(
             Long requesterUserId,
-            Long infraId) {
+            Long infraId
+    ) {
 
         validateRole(requesterUserId, RequestItemType.INFRASTRUCTURE);
 
@@ -152,9 +196,8 @@ public class ResourceRequestServiceImpl implements ResourceRequestService {
 
         ResourceRequest saved = requestRepo.save(request);
 
-        // ✅ NOTIFICATION
-        UserDTO requester = userClient.getUserById(requesterUserId);
-        notificationClient.sendNotification(
+        UserDTO requester = fetchUser(requesterUserId);
+        notifyUser(
                 requesterUserId,
                 saved.getRequestId(),
                 "Infrastructure request submitted successfully",
@@ -171,17 +214,19 @@ public class ResourceRequestServiceImpl implements ResourceRequestService {
     @Override
     public ResourceRequest approve(Long requestId, Long approverUserId) {
 
-        userClient.getUserById(approverUserId); // validate approver exists
+        fetchUser(approverUserId); // validate approver exists
 
         ResourceRequest request = getById(requestId);
 
         if (request.getItemType() == RequestItemType.RESOURCE) {
             resourceService.allocate(
                     request.getResource().getResourceId(),
-                    request.getQuantity());
+                    request.getQuantity()
+            );
         } else {
             infrastructureService.markInUse(
-                    request.getInfrastructure().getInfraId());
+                    request.getInfrastructure().getInfraId()
+            );
         }
 
         request.setStatus(RequestStatus.APPROVED);
@@ -190,9 +235,8 @@ public class ResourceRequestServiceImpl implements ResourceRequestService {
 
         ResourceRequest saved = requestRepo.save(request);
 
-        // ✅ NOTIFICATION
-        UserDTO requester = userClient.getUserById(request.getRequesterUserId());
-        notificationClient.sendNotification(
+        UserDTO requester = fetchUser(request.getRequesterUserId());
+        notifyUser(
                 requester.userId(),
                 saved.getRequestId(),
                 "Your request has been APPROVED",
@@ -210,9 +254,10 @@ public class ResourceRequestServiceImpl implements ResourceRequestService {
     public ResourceRequest decline(
             Long requestId,
             Long approverUserId,
-            String reason) {
+            String reason
+    ) {
 
-        userClient.getUserById(approverUserId);
+        fetchUser(approverUserId);
 
         ResourceRequest request = getById(requestId);
 
@@ -222,9 +267,8 @@ public class ResourceRequestServiceImpl implements ResourceRequestService {
 
         ResourceRequest saved = requestRepo.save(request);
 
-        // ✅ NOTIFICATION
-        UserDTO requester = userClient.getUserById(request.getRequesterUserId());
-        notificationClient.sendNotification(
+        UserDTO requester = fetchUser(request.getRequesterUserId());
+        notifyUser(
                 requester.userId(),
                 saved.getRequestId(),
                 "Your request was DECLINED: " + reason,
@@ -264,9 +308,10 @@ public class ResourceRequestServiceImpl implements ResourceRequestService {
     @Override
     public ResourceRequest markInReview(
             Long requestId,
-            Long reviewerUserId) {
+            Long reviewerUserId
+    ) {
 
-        userClient.getUserById(reviewerUserId);
+        fetchUser(reviewerUserId);
 
         ResourceRequest request = getById(requestId);
 

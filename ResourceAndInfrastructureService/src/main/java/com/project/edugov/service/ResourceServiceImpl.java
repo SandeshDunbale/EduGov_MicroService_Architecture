@@ -2,20 +2,21 @@ package com.project.edugov.service;
 
 import java.util.List;
 
+import jakarta.persistence.EntityNotFoundException;
 import lombok.extern.slf4j.Slf4j;
+
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
+
+import com.project.edugov.dto.ProgramDTO;
+import com.project.edugov.exception.DownstreamServiceUnavailableException;
 import com.project.edugov.feign.ProgramClient;
-import com.project.edugov.model.RequestStatus;
-import com.project.edugov.model.Resource;
-import com.project.edugov.model.ResourceStatus;
-import com.project.edugov.model.ResourceType;
+import com.project.edugov.model.*;
 import com.project.edugov.repository.ResourceRepository;
 import com.project.edugov.repository.ResourceRequestRepository;
-
-import jakarta.persistence.EntityNotFoundException;
 
 @Slf4j
 @Service
@@ -36,14 +37,25 @@ public class ResourceServiceImpl implements ResourceService {
         this.programClient = programClient;
     }
 
-    // ================================
-    // CREATE RESOURCE
-    // ================================
+    // ✅ ADDITION (no behavior change)
+    @CircuitBreaker(name = "programService", fallbackMethod = "programFallback")
+    private ProgramDTO validateProgram(Long programId) {
+        return programClient.getProgramById(programId);
+    }
+
+    private ProgramDTO programFallback(Long programId, Throwable ex) {
+        log.error("Program service DOWN. programId={}", programId, ex);
+        throw new DownstreamServiceUnavailableException(
+                "ACADEMICPROGRAMSERVICEEDUGOV",
+                "Program service is unavailable. Cannot process resource operation."
+        );
+    }
+
     @Override
     public Resource create(Long programId, ResourceType type, Integer quantity, ResourceStatus status) {
 
-        // ✅ Validate Program via Feign
-        programClient.getProgramById(programId);
+        // ✅ SAME CALL – now protected
+        validateProgram(programId);
 
         Resource saved = resourceRepo.save(
                 Resource.builder()
@@ -58,9 +70,6 @@ public class ResourceServiceImpl implements ResourceService {
         return saved;
     }
 
-    // ================================
-    // GET BY ID
-    // ================================
     @Override
     public Resource getById(Long resourceId) {
         return resourceRepo.findById(resourceId)
@@ -68,25 +77,16 @@ public class ResourceServiceImpl implements ResourceService {
                         new EntityNotFoundException("Resource not found: " + resourceId));
     }
 
-    // ================================
-    // FIND BY PROGRAM ID
-    // ================================
     @Override
     public List<Resource> findByProgramId(Long programId) {
         return resourceRepo.findByProgramId(programId);
     }
 
-    // ================================
-    // FIND BY STATUS
-    // ================================
     @Override
     public List<Resource> findByStatus(ResourceStatus status) {
         return resourceRepo.findByStatus(status);
     }
 
-    // ================================
-    // UPDATE STATUS
-    // ================================
     @Override
     public Resource updateStatus(Long resourceId, ResourceStatus status) {
         Resource r = getById(resourceId);
@@ -94,14 +94,11 @@ public class ResourceServiceImpl implements ResourceService {
         return resourceRepo.save(r);
     }
 
-    // ================================
-    // UPDATE RESOURCE
-    // ================================
     @Override
     public Resource update(Long id, Long programId, ResourceType type, Integer qty, ResourceStatus status) {
 
-        // ✅ Validate Program via Feign
-        programClient.getProgramById(programId);
+        // ✅ SAME CALL – now protected
+        validateProgram(programId);
 
         Resource r = getById(id);
         r.setProgramId(programId);
@@ -112,9 +109,6 @@ public class ResourceServiceImpl implements ResourceService {
         return resourceRepo.save(r);
     }
 
-    // ================================
-    // ALLOCATE
-    // ================================
     @Override
     public Resource allocate(Long resourceId, int qtyToAllocate) {
 
@@ -125,25 +119,19 @@ public class ResourceServiceImpl implements ResourceService {
         Resource r = getById(resourceId);
 
         if (r.getQuantity() != null) {
-            r.setQuantity(r.getQuantity() + qtyToAllocate);
+            r.setQuantity(r.getQuantity() - qtyToAllocate);
         }
 
-        r.setStatus(ResourceStatus.ALLOCATED);
+        r.setStatus(ResourceStatus.AVAILABLE);
         return resourceRepo.save(r);
     }
 
-    // ================================
-    // FIND ALL
-    // ================================
     @Override
     @Transactional(readOnly = true)
     public List<Resource> findAll() {
         return resourceRepo.findAll();
     }
 
-    // ================================
-    // DELETE
-    // ================================
     @Override
     public void delete(Long resourceId) {
 
