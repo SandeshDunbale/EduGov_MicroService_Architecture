@@ -17,6 +17,9 @@ import com.project.edugov.model.ResearchProject;
 import com.project.edugov.repository.GrantApplicationRepository;
 import com.project.edugov.repository.ResearchProjectRepository;
 
+// ADDED: Resilience4j Import
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -27,28 +30,24 @@ public class ResearchProjectServiceImpl implements ResearchProjectService {
 
 	private final ResearchProjectRepository projectRepository; 
 	private final GrantApplicationRepository applicationRepository;
-	// DELETE THIS
-	// private final ModelMapperConfig modelMapper;
 	
-
-	// REPLACE IT WITH THIS
 	private final ModelMapper modelMapper;
 	
-	// CHANGED: Injected the Feign Client instead of the Repository
 	private final FacultyClient facultyClient;
 	
+	// ADDED: Circuit Breaker Annotation
 	@Override
 	@Transactional
+	@CircuitBreaker(name = "facultyServiceCb", fallbackMethod = "createProjectFallback")
 	public ResearchProjectDTO createProject(ResearchProject project, Long facultyId) {
 		log.info("Attempting to create a new project: '{}' for Faculty ID: {}", project.getTitle(), facultyId);
 
-		// CHANGED: SYNCHRONOUS NETWORK CALL via Feign
-		// If the user service throws a 404, OpenFeign handles it or you can catch it!
 		FacultyMinimalDTO faculty;
 		try {
 			faculty = facultyClient.getFacultyById(facultyId);
 		} catch (Exception e) {
 			log.error("Project creation failed: Faculty ID {} not found in User Service", facultyId);
+			// Throwing this exception triggers the Circuit Breaker
 			throw new ResourceNotFoundException("Faculty not found with ID: " + facultyId);
 		}
 
@@ -69,6 +68,16 @@ public class ResearchProjectServiceImpl implements ResearchProjectService {
 		return responseDTO;
 	}
 
+	// ADDED: Fallback Method for createProject
+	public ResearchProjectDTO createProjectFallback(ResearchProject project, Long facultyId, Throwable throwable) {
+		log.error("Circuit Breaker Tripped! Faculty Service unavailable to verify Faculty {}. Fallback executing. Reason: {}", facultyId, throwable.getMessage());
+		
+		ResearchProjectDTO fallbackResponse = new ResearchProjectDTO();
+		fallbackResponse.setTitle(project.getTitle() + " (CREATION FAILED - SERVICE DOWN)");
+		// Returning an empty DTO to prevent server crash, though you could also throw a custom 503 Exception here.
+		return fallbackResponse;
+	}
+
 	@Override
 	public List<ResearchProjectDTO> getProjectsByFaculty(Long facultyId) {
 		log.debug("Fetching all projects for Faculty ID: {}", facultyId);
@@ -79,8 +88,23 @@ public class ResearchProjectServiceImpl implements ResearchProjectService {
 			throw new RuntimeException("No projects found for Faculty ID: " + facultyId);
 		}
 
-		return projects.stream().map(project -> modelMapper.map(project, ResearchProjectDTO.class))
-				.collect(java.util.stream.Collectors.toList());
+		// 1. Fetch the Faculty details ONCE before the loop
+		FacultyMinimalDTO facultyProfile = null;
+		try {
+			facultyProfile = facultyClient.getFacultyById(facultyId);
+		} catch (Exception e) {
+			log.warn("Could not fetch Faculty details for ID: {}", facultyId);
+		}
+		
+		// We need a 'final' effectively variable to use inside the lambda stream
+		final FacultyMinimalDTO finalFaculty = facultyProfile;
+
+		// 2. Map the projects and attach the faculty profile to each one
+		return projects.stream().map(p -> {
+			ResearchProjectDTO dto = modelMapper.map(p, ResearchProjectDTO.class);
+			dto.setFaculty(finalFaculty); // Attach the fetched data!
+			return dto;
+		}).collect(java.util.stream.Collectors.toList());
 	}
 
 	@Override
@@ -149,24 +173,22 @@ public class ResearchProjectServiceImpl implements ResearchProjectService {
 		existingProject.setStartDate(details.getStartDate());
 		existingProject.setEndDate(details.getEndDate());
 		existingProject.setStatus(ProjectStatus.DRAFT);
-
-		// ... your existing code above stays exactly the same!
 		
-				ResearchProject updated = projectRepository.save(existingProject);
-				log.info("Project ID: {} updated successfully and set back to DRAFT", projectId);
+		ResearchProject updated = projectRepository.save(existingProject);
+		log.info("Project ID: {} updated successfully and set back to DRAFT", projectId);
 
-				// 1. Keep your exact original mapping logic
-				ProjectUpdateResponseDTO responseDTO = modelMapper.map(updated, ProjectUpdateResponseDTO.class);
+		// 1. Keep your exact original mapping logic
+		ProjectUpdateResponseDTO responseDTO = modelMapper.map(updated, ProjectUpdateResponseDTO.class);
 
-				// 2. ONLY ADD THIS TRY-CATCH BLOCK
-				try {
-					FacultyMinimalDTO faculty = facultyClient.getFacultyById(updated.getFacultyId());
-					responseDTO.setFaculty(faculty);
-				} catch (Exception e) {
-					log.warn("Could not fetch Faculty details for ID: {}", updated.getFacultyId());
-				}
+		// 2. ONLY ADD THIS TRY-CATCH BLOCK
+		try {
+			FacultyMinimalDTO faculty = facultyClient.getFacultyById(updated.getFacultyId());
+			responseDTO.setFaculty(faculty);
+		} catch (Exception e) {
+			log.warn("Could not fetch Faculty details for ID: {}", updated.getFacultyId());
+		}
 
-				// 3. Return the updated DTO
-				return responseDTO;
-			}
+		// 3. Return the updated DTO
+		return responseDTO;
 	}
+}

@@ -21,21 +21,25 @@ public class ResearchAndGrantServiceEduGovApplication {
 	}
 	
 	@Bean
-    public RequestInterceptor requestInterceptor() {
-        return requestTemplate -> {
-            ServletRequestAttributes attributes = 
-                (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
-            
-            if (attributes != null) {
-                HttpServletRequest request = attributes.getRequest();
-                String authHeader = request.getHeader("Authorization");
-                
-                if (authHeader != null) {
-                    // This passes the Faculty token to the next microservice
-                    requestTemplate.header("Authorization", authHeader);
-                }
-            }
-        };
-    }
+	public RequestInterceptor requestInterceptor() {
+		return requestTemplate -> {
+			ServletRequestAttributes attributes = 
+				(ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
+			
+			if (attributes != null) {
+				HttpServletRequest request = attributes.getRequest();
+				String authHeader = request.getHeader("Authorization");
+				
+				if (authHeader != null) {
+					System.out.println("✅ FEIGN SUCCESS: Token found and attached to request!");
+					requestTemplate.header("Authorization", authHeader);
+				} else {
+					System.out.println("❌ FEIGN ERROR: The incoming request has NO Authorization header!");
+				}
+			} else {
+				System.out.println("❌ FEIGN ERROR: Request Context is NULL! Thread lost the request.");
+			}
+		};
+	}
 }
 

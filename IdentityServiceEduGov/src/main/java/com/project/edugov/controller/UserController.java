@@ -47,8 +47,8 @@ public class UserController {
     
  // Use hasAnyAuthority to check for the exact string match without the ROLE_ prefix!
  // Bulletproof authority check for all roles, with and without prefixes
- // Simplified to use the roles that actually exist in your Role enum
-    @PreAuthorize("hasAnyAuthority('UNIV_ADMIN', 'ROLE_UNIV_ADMIN', 'FACULTY', 'ROLE_FACULTY', 'STUDENT', 'ROLE_STUDENT')")
+ // Simplified to use the roles that actually exist in your Role enum    //added prog_manger for mod 4
+    @PreAuthorize("hasAnyAuthority('UNIV_ADMIN', 'ROLE_UNIV_ADMIN', 'FACULTY', 'ROLE_FACULTY', 'STUDENT', 'ROLE_STUDENT','PROG_MANAGER', 'ROLE_PROG_MANAGER')")
     @GetMapping("/{id}")
     public ResponseEntity<UserResponseDTO> getUserById(@PathVariable Long id) {
         return userService.getUserById(id)

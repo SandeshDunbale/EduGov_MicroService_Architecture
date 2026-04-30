@@ -27,6 +27,9 @@ import com.project.edugov.repository.GrantApplicationRepository;
 import com.project.edugov.repository.GrantRepository;
 import com.project.edugov.repository.ResearchProjectRepository;
 
+// ADDED: Resilience4j Import
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -39,7 +42,6 @@ public class GrantServiceImpl implements GrantService {
 	private final GrantRepository grantRepository;
 	private final ResearchProjectRepository projectRepository;
 	private final ModelMapper modelMapper;
-	
 	
 	// CHANGED: Feign Clients instead of Repositories!
 	private final UserClient userClient;
@@ -112,8 +114,10 @@ public class GrantServiceImpl implements GrantService {
 		return responseDTO;
 	}
 
+	// ADDED: Circuit Breaker Annotation
 	@Override
 	@Transactional
+	@CircuitBreaker(name = "userServiceCb", fallbackMethod = "approveGrantApplicationFallback")
 	public GrantResponseDTO approveGrantApplication(Long applicationId, Long userId, GrantStatus decision) {
 		log.info("Manager (User ID: {}) is making a decision [{}]", userId, decision);
 
@@ -126,6 +130,8 @@ public class GrantServiceImpl implements GrantService {
 		try {
 			programManager = userClient.getUserById(userId);
 		} catch (Exception e) {
+			log.error("The REAL reason the User Service failed: {}", e.getMessage()); 
+			// Throwing this exception is what trips the Circuit Breaker and triggers the fallback!
 			throw new ResourceNotFoundException("Manager not found with ID: " + userId + " in User Service");
 		}
 
@@ -145,7 +151,17 @@ public class GrantServiceImpl implements GrantService {
 			project.setStatus(ProjectStatus.UNDER_REVIEW);
 			projectRepository.save(project);
 			applicationRepository.save(app);
-			return modelMapper.map(app, GrantResponseDTO.class);
+			
+			// FIX: Manually map fields since we are not creating a Grant record
+			GrantResponseDTO response = new GrantResponseDTO();
+			response.setProjectId(project.getProjectId());
+			response.setProjectTitle(project.getTitle());
+			response.setAmount(app.getRequestedAmount());
+			response.setDate(LocalDate.now());
+			response.setStatus(GrantStatus.UNDER_REVIEW);
+			response.setApprovedByRole(programManager.getRole());
+			
+			return response;
 		}
 
 		else if (decision == GrantStatus.APPROVED) {
@@ -191,8 +207,15 @@ public class GrantServiceImpl implements GrantService {
 				);
 			}
 
-			GrantResponseDTO response = modelMapper.map(app, GrantResponseDTO.class);
+			// FIX: Manually map fields since we are not creating a Grant record
+			GrantResponseDTO response = new GrantResponseDTO();
+			response.setProjectId(project.getProjectId());
+			response.setProjectTitle(project.getTitle());
+			response.setAmount(app.getRequestedAmount());
+			response.setDate(LocalDate.now()); // Date it was rejected
+			response.setStatus(GrantStatus.REJECTED);
 			response.setApprovedByRole(programManager.getRole()); // Attach Role from Network call
+			
 			return response;
 		}
 
@@ -201,11 +224,21 @@ public class GrantServiceImpl implements GrantService {
 		}
 	}
 
-//	@Override
-//	public List<GrantApplicationDTO> getPendingApplications() {
-//		return applicationRepository.findByStatus(GrantApplicationStatus.SUBMITTED).stream()
-//				.map(app -> modelMapper.map(app, GrantApplicationDTO.class)).collect(Collectors.toList());
-//	}
+	// --- FALLBACK METHOD FOR APPROVE GRANT (FIXED) ---
+	public GrantResponseDTO approveGrantApplicationFallback(Long applicationId, Long userId, GrantStatus decision, Throwable throwable) {
+		log.error("Circuit Breaker Tripped! User Service unavailable to verify Manager {}. Fallback executing. Reason: {}", userId, throwable.getMessage());
+		
+		GrantResponseDTO fallbackResponse = new GrantResponseDTO();
+		
+		// 1. Pass the Enum directly since the DTO expects GrantStatus
+		fallbackResponse.setStatus(decision); 
+		
+		// 2. Add a clear role indicator so your frontend/logs know the service was down
+		fallbackResponse.setApprovedByRole("SERVICE_UNAVAILABLE");
+		
+		return fallbackResponse;
+	}
+
 	@Override
 	public List<GrantApplicationDTO> getPendingApplications() {
 		return applicationRepository.findByStatus(GrantApplicationStatus.SUBMITTED).stream()
@@ -269,7 +302,6 @@ public class GrantServiceImpl implements GrantService {
 					return dto;
 				}).collect(Collectors.toList());
 	}
-	
 	
 	//Module 6 Requirement
 	@Override
