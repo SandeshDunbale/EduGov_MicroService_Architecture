@@ -52,7 +52,7 @@ public class DocumentServiceImpl implements DocumentService {
 
         Document savedDoc = docRepo.save(doc);
 
-        // Convert Entity to DTO to fix Controller error
+        // Convert Entity to DTO to fix  error
         return DocumentResponse.builder()
                 .documentId(savedDoc.getDocumentId())
                 .docType(savedDoc.getDocType())
