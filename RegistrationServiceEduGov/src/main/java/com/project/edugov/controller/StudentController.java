@@ -78,4 +78,12 @@ public class StudentController {
         response.put("status", "SUCCESS");
         return ResponseEntity.ok(response);
     }
+    
+    //Module 6 requirements
+ // Add this to StudentController.java
+    @GetMapping("/all")
+    public ResponseEntity<List<StudentResponseDTO>> getAllStudents() {
+        log.info("API Hit: GET /students/all | Fetching all students for compliance scan");
+        return ResponseEntity.ok(studentService.getAllStudents());
+    }
 }

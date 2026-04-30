@@ -1,5 +1,5 @@
 package com.project.edugov.controller;
-
+ 
 import java.util.List;
 
 import org.springframework.http.HttpStatus;
@@ -19,15 +19,15 @@ import com.project.edugov.service.CourseService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-
+ 
 @RestController
 @Slf4j
 @RequiredArgsConstructor
 @RequestMapping("/courses")
 public class CourseController {
-
+ 
 	private final CourseService courseService;
-
+ 
 	// Create a new academic course
 	@PostMapping("/save")
 	public ResponseEntity<CourseDTO> createCourse(@Valid @RequestBody Course course) {
@@ -36,7 +36,7 @@ public class CourseController {
 		log.info("POST: course created successfully with id {}", result.getCourseId());
 		return new ResponseEntity<>(result, HttpStatus.CREATED);
 	}
-
+ 
 	// Fetch a specific course details by CourseId
 	@GetMapping("/{courseId}")
 	public ResponseEntity<CourseDTO> getCourseById(@PathVariable Long courseId) {
@@ -45,7 +45,7 @@ public class CourseController {
 		log.info("GET: getting course with title : '{}'", result.getTitle());
 		return ResponseEntity.ok(result);
 	}
-
+ 
 	// Fetch a specific course details assigned to facultyId
 	@GetMapping("/faculty/{facultyId}")
 	public ResponseEntity<List<CourseDTO>> getCoursesByFaculty(@PathVariable Long facultyId) {
@@ -54,7 +54,7 @@ public class CourseController {
 		log.info("GET: getting {} courses assigned for this faculty", courses.size());
 		return ResponseEntity.ok(courses);
 	}
-
+ 
 	// Fetch course details under specififc programId
 	@GetMapping("/program/{programId}")
 	public ResponseEntity<List<CourseDTO>> getCoursesByProgram(@PathVariable Long programId) {
@@ -63,7 +63,7 @@ public class CourseController {
 		log.info("GET: getting {} courses under program {}", courses.size(), programId);
 		return ResponseEntity.ok(courses);
 	}
-
+ 
 	// Update an existing course
 	@PatchMapping("/update/{id}")
 	public ResponseEntity<CourseDTO> updateCourse(@PathVariable Long id, @RequestBody Course details) {
@@ -72,7 +72,7 @@ public class CourseController {
 		log.info("PATCH: course {} updated successfully", updated.getCourseId());
 		return ResponseEntity.ok(updated);
 	}
-
+ 
 	// List of all courses
 	@GetMapping("/all")
 	public ResponseEntity<List<CourseDTO>> getAllCourses() {

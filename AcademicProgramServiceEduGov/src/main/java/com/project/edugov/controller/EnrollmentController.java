@@ -1,5 +1,5 @@
 package com.project.edugov.controller;
-
+ 
 import java.util.List;
 import java.util.Map;
 
@@ -19,7 +19,7 @@ import com.project.edugov.service.EnrollmentService;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-
+ 
 @RestController
 @Slf4j
 @RequiredArgsConstructor
@@ -37,7 +37,7 @@ public class EnrollmentController {
 		log.info("POST: enrollment created successfully with id {}", response.getEnrollmentId());
 		return new ResponseEntity<>(response, HttpStatus.CREATED);
 	}
-
+ 
 	// Fetch enrollments based on status
 	@GetMapping("/status/{status}")
 	public ResponseEntity<List<EnrollmentResponseDTO>> getByStatus(@PathVariable Status status) {
@@ -46,7 +46,7 @@ public class EnrollmentController {
 		log.info("GET: getting {} enrollments with status {}", results.size(), status);
 		return ResponseEntity.ok(results);
 	}
-
+ 
 	// Update enrollments status(APPROVE/REJECT)
 	@PutMapping("/update-status")
 	public ResponseEntity<EnrollmentResponseDTO> updateEnrollment(@RequestBody Map<String, Object> data) {
@@ -55,7 +55,7 @@ public class EnrollmentController {
 		log.info("PATCH: enrollment {} updated successfully", result.getEnrollmentId());
 		return ResponseEntity.ok(result);
 	}
-
+ 
 	// List of all enrollments
 	@GetMapping("/all")
 	public ResponseEntity<List<EnrollmentResponseDTO>> getAll() {

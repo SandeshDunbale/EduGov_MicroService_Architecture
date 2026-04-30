@@ -6,6 +6,8 @@ import com.project.edugov.model.Status;
 import java.util.List;
 import java.util.Optional;
 
+import org.jspecify.annotations.Nullable;
+
 public interface StudentService {
     StudentResponseDTO registerStudent(StudentDTO dto);
     
@@ -18,6 +20,10 @@ public interface StudentService {
     StudentResponseDTO updateStudent(Long id, StudentDTO dto);
     
     Optional<StudentResponseDTO> getStudentById(Long id);
+    //StudentResponseDTO getStudentById(Long id);
     
     String deleteStudent(Long id);
+
+	//Module 6 requirements
+    List<StudentResponseDTO> getAllStudents();
 }

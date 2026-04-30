@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
 import com.project.edugov.model.Program;
+import com.project.edugov.model.Status;
 
 @Repository
 public interface ProgramRepository extends JpaRepository<Program, Long> {
@@ -15,4 +16,7 @@ public interface ProgramRepository extends JpaRepository<Program, Long> {
 
 	// Search programs by title
 	List<Program> findByTitleContainingIgnoreCase(String title);
+	
+	//Module 6 requirement
+	List<Program> findByStatus(Status status);
 }

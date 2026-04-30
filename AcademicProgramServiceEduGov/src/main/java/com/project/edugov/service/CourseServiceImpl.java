@@ -7,6 +7,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
 import com.project.edugov.client.FacultyClient;
+import com.project.edugov.client.NotificationClient;
 import com.project.edugov.client.UserClient;
 import com.project.edugov.dto.CourseDTO;
 import com.project.edugov.dto.FacultyFeignDTO;
@@ -20,6 +21,7 @@ import com.project.edugov.model.Status;
 import com.project.edugov.repository.CourseRepository;
 import com.project.edugov.repository.ProgramRepository;
 
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -33,6 +35,7 @@ public class CourseServiceImpl implements CourseService {
 	private final UserClient userClient;
 	private final FacultyClient facultyClient;
 	private final ModelMapper modelMapper;
+	private final NotificationClient notificationClient;
 
 	// Helper method
 	private CourseDTO mapToCustomDto(Course c) {
@@ -44,8 +47,6 @@ public class CourseServiceImpl implements CourseService {
 			if (admin != null) {
 				dto.setAdminId(admin.getUserId());
 				dto.setAdminName(admin.getName());
-			} else {
-				dto.setAdminId(c.getCreatedByAdminId());
 			}
 		} catch (Exception e) {
 			log.error("error: identity service unreachable for admin id {}", c.getCreatedByAdminId());
@@ -60,8 +61,6 @@ public class CourseServiceImpl implements CourseService {
 				dto.setFacultyId(faculty.getFacultyId());
 				dto.setFacultyName(faculty.getName());
 				dto.setFacultyEmail(faculty.getEmail());
-			} else {
-				dto.setFacultyId(c.getFacultyId());
 			}
 		} catch (Exception e) {
 			log.error("error: registration service unreachable for faculty id {}", c.getFacultyId());
@@ -80,8 +79,10 @@ public class CourseServiceImpl implements CourseService {
 	}
 
 	@Override
+	@CircuitBreaker(name = "courseService", fallbackMethod = "createCourseFallback")
 	public CourseDTO createCourse(Course course) {
-		log.info("creating new course: '{}'", course.getTitle());
+		log.info("Creating new course: '{}'", course.getTitle());
+
 		Long pId = (course.getProgram() != null) ? course.getProgram().getProgramId() : null;
 		Long fId = course.getFacultyId();
 		Long aId = course.getCreatedByAdminId();
@@ -91,22 +92,14 @@ public class CourseServiceImpl implements CourseService {
 			throw new APIException(HttpStatus.BAD_REQUEST, "Program, Faculty, and Admin IDs are required.");
 		}
 
-		try {
-			UserFeignDTO admin = userClient.getUserById(aId);
-			if (admin == null || !Role.UNIV_ADMIN.equals(admin.getRole())) {
-				log.warn("unauthorized: user {} is not an admin in identity service", aId);
-				throw new APIException(HttpStatus.FORBIDDEN,
-						"Access Denied: Only University Admins can create courses.");
-			}
-		} catch (feign.FeignException e) {
-			if (e.status() == 404 || e.status() == 403 || e.status() == 500
-					|| e.contentUTF8().toLowerCase().contains("not found")) {
-				log.error("not found: admin {} not in identity service", aId);
-				throw new ResourceNotFoundException("Admin not found with ID: " + aId);
-			}
-			throw new APIException(HttpStatus.SERVICE_UNAVAILABLE, "Identity Service is unreachable.");
+		// 1. Verify Admin via Identity Service
+		UserFeignDTO admin = userClient.getUserById(aId);
+		if (admin == null || !Role.UNIV_ADMIN.equals(admin.getRole())) {
+			log.warn("unauthorized: user {} is not an admin", aId);
+			throw new APIException(HttpStatus.FORBIDDEN, "Access Denied: Only University Admins can create courses.");
 		}
 
+		// 2. Verify Program in Local DB
 		Program program = programRepo.findById(pId)
 				.orElseThrow(() -> new ResourceNotFoundException("Program not found with ID: " + pId));
 
@@ -115,42 +108,51 @@ public class CourseServiceImpl implements CourseService {
 			throw new APIException(HttpStatus.BAD_REQUEST, "Program is INACTIVE.");
 		}
 
-		try {
-			if (facultyClient.getFacultyById(fId) == null) {
-				throw new ResourceNotFoundException("Faculty not found with ID: " + fId);
-			}
-		} catch (feign.FeignException e) {
-			if (e.status() == 404 || e.status() == 500 || e.contentUTF8().toLowerCase().contains("not found")) {
-				log.error("not found: faculty {} not in registration service", fId);
-				throw new ResourceNotFoundException("Faculty not found with ID: " + fId);
-			}
-			throw new APIException(HttpStatus.SERVICE_UNAVAILABLE, "Registration Service is unreachable.");
+		// 3. Verify Faculty via Registration Service
+		FacultyFeignDTO faculty = facultyClient.getFacultyById(fId);
+		if (faculty == null) {
+			throw new ResourceNotFoundException("Faculty not found with ID: " + fId);
 		}
 
+		// 4. Duplicate Check
 		if (courseRepo.existsByTitleIgnoreCase(course.getTitle())) {
-			log.warn("conflict: course title '{}' already exists in db", course.getTitle());
 			throw new APIException(HttpStatus.BAD_REQUEST, "Course title already exists.");
 		}
 
+		// 5. Save and Notify
 		course.setProgram(program);
-		CourseDTO saved = mapToCustomDto(courseRepo.save(course));
-		log.info("done! course '{}' created successfully", saved.getTitle());
-		return saved;
+		Course savedCourse = courseRepo.save(course);
+		log.info("Course saved successfully with ID: {}", savedCourse.getCourseId());
+
+		// Notification Logic (Separate try-catch so it doesn't trip the main circuit if
+		// it fails)
+		try {
+			log.info("ACTION: Notifying Faculty {} about new course assignment", fId);
+			notificationClient.sendNotification(faculty.getFacultyId(), savedCourse.getCourseId(),
+					"Dear " + faculty.getName() + ", you have been assigned to: " + savedCourse.getTitle(),
+					"COURSE_ASSIGNMENT", faculty.getEmail());
+		} catch (Exception e) {
+			log.error("NOTIFICATION ERROR: {}", e.getMessage());
+		}
+
+		return mapToCustomDto(savedCourse);
+	}
+
+	// FALLBACK for createCourse
+	public CourseDTO createCourseFallback(Course course, Throwable t) {
+		log.error("FALLBACK: External service verification failed. Reason: {}", t.getMessage());
+		throw new APIException(HttpStatus.SERVICE_UNAVAILABLE,
+				"External services (Identity/Registration) are currently unavailable. Please try again later.");
 	}
 
 	@Override
+	@CircuitBreaker(name = "registrationService", fallbackMethod = "getCoursesByFacultyFallback")
 	public List<CourseDTO> getCoursesByFacultyId(Long facultyId) {
 		log.info("fetching courses assigned to faculty id: {}", facultyId);
-		try {
-			if (facultyClient.getFacultyById(facultyId) == null) {
-				throw new ResourceNotFoundException("Faculty not found with ID: " + facultyId);
-			}
-		} catch (feign.FeignException.NotFound e) {
-			log.warn("not found: faculty id {} missing in registration service", facultyId);
+
+		// Verify Faculty via Registration Service
+		if (facultyClient.getFacultyById(facultyId) == null) {
 			throw new ResourceNotFoundException("Faculty not found with ID: " + facultyId);
-		} catch (Exception e) {
-			log.error("error: cannot connect to registration service for faculty {}", facultyId);
-			throw new APIException(HttpStatus.SERVICE_UNAVAILABLE, "Registration Service is currently unreachable.");
 		}
 
 		List<Course> courses = courseRepo.findByFacultyId(facultyId);
@@ -159,8 +161,14 @@ public class CourseServiceImpl implements CourseService {
 			throw new ResourceNotFoundException("No courses are currently available for Faculty ID: " + facultyId);
 		}
 
-		log.info("getting {} courses for faculty id {}", courses.size(), facultyId);
 		return courses.stream().map(this::mapToCustomDto).toList();
+	}
+
+	// FALLBACK for getCoursesByFacultyId
+	public List<CourseDTO> getCoursesByFacultyFallback(Long facultyId, Throwable t) {
+		log.error("FALLBACK: Registration service down for faculty id {}. Error: {}", facultyId, t.getMessage());
+		throw new APIException(HttpStatus.SERVICE_UNAVAILABLE,
+				"Registration Service is unreachable. Cannot verify faculty.");
 	}
 
 	@Override
@@ -177,7 +185,6 @@ public class CourseServiceImpl implements CourseService {
 			throw new ResourceNotFoundException("No courses are currently registered under Program ID: " + programId);
 		}
 
-		log.info("getting {} courses from program {}", courses.size(), programId);
 		return courses.stream().map(this::mapToCustomDto).toList();
 	}
 
@@ -187,7 +194,6 @@ public class CourseServiceImpl implements CourseService {
 		Course course = courseRepo.findById(courseId)
 				.orElseThrow(() -> new ResourceNotFoundException("Course not found: " + courseId));
 
-		log.info("getting course -> '{}'", course.getTitle());
 		return mapToCustomDto(course);
 	}
 
@@ -201,8 +207,6 @@ public class CourseServiceImpl implements CourseService {
 		if (details.getTitle() != null && !details.getTitle().equalsIgnoreCase(existing.getTitle())) {
 			if (courseRepo.existsByTitleIgnoreCaseAndProgram_ProgramId(details.getTitle(),
 					existing.getProgram().getProgramId())) {
-				log.warn("update failed: title '{}' already used in program {}", details.getTitle(),
-						existing.getProgram().getProgramId());
 				throw new APIException(HttpStatus.BAD_REQUEST, "Title already used in this program.");
 			}
 			existing.setTitle(details.getTitle());
@@ -218,13 +222,10 @@ public class CourseServiceImpl implements CourseService {
 		}
 
 		if (!isChanged) {
-			log.info("no changes detected for course id: {}", id);
-			throw new APIException(HttpStatus.BAD_REQUEST, "No changes detected. Program is already up to date.");
+			throw new APIException(HttpStatus.BAD_REQUEST, "No changes detected.");
 		}
 
-		CourseDTO updated = mapToCustomDto(courseRepo.save(existing));
-		log.info("Course {} updated successfully", id);
-		return updated;
+		return mapToCustomDto(courseRepo.save(existing));
 	}
 
 	@Override
@@ -232,11 +233,9 @@ public class CourseServiceImpl implements CourseService {
 		log.info("fetching full list of courses...");
 		List<Course> courses = courseRepo.findAll();
 		if (courses.isEmpty()) {
-			log.warn("db is empty: no courses found");
 			throw new ResourceNotFoundException("No courses found in the database.");
 		}
 
-		log.info("getting total of {} course records", courses.size());
 		return courses.stream().map(this::mapToCustomDto).toList();
 	}
 }

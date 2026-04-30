@@ -1,6 +1,5 @@
 package com.project.edugov.service;
 
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
@@ -9,6 +8,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
 import com.project.edugov.client.FacultyClient;
+import com.project.edugov.client.NotificationClient;
 import com.project.edugov.client.StudentClient;
 import com.project.edugov.client.UserClient;
 import com.project.edugov.dto.EnrollmentResponseDTO;
@@ -24,6 +24,7 @@ import com.project.edugov.model.Status;
 import com.project.edugov.repository.CourseRepository;
 import com.project.edugov.repository.EnrollmentRepository;
 
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -38,6 +39,7 @@ public class EnrollmentServiceImpl implements EnrollmentService {
 	private final FacultyClient facultyClient;
 	private final UserClient userClient;
 	private final ModelMapper modelMapper;
+	private final NotificationClient notificationClient;
 
 	// Helper method
 	private EnrollmentResponseDTO mapToCustomDto(Enrollment e) {
@@ -55,7 +57,7 @@ public class EnrollmentServiceImpl implements EnrollmentService {
 		} catch (Exception ex) {
 			log.error("error: student service unreachable for student id {}", e.getStudentId());
 			dto.setStudentId(e.getStudentId());
-			dto.setStudentName("Student Not Found");
+			dto.setStudentName("Student Service Unavailable");
 		}
 
 		// Fetch Faculty Details from Registration Service
@@ -72,7 +74,7 @@ public class EnrollmentServiceImpl implements EnrollmentService {
 					}
 				} catch (Exception ex) {
 					log.error("error: registration service unreachable for faculty id {}", fId);
-					dto.setFacultyName("Faculty Not Found");
+					dto.setFacultyName("Faculty Service Unavailable");
 				}
 			}
 		}
@@ -88,63 +90,80 @@ public class EnrollmentServiceImpl implements EnrollmentService {
 			} catch (Exception ex) {
 				log.error("error: identity service unreachable for admin id {}", e.getApprovedByAdminId());
 				dto.setApprovedByAdminId(e.getApprovedByAdminId());
-				dto.setApprovedByAdminName("Admin Service Unavailable");
+				dto.setApprovedByAdminName("Identity Service Unavailable");
 			}
 		}
 		return dto;
 	}
 
 	@Override
+	@CircuitBreaker(name = "enrollmentService", fallbackMethod = "applyForCourseFallback")
 	public EnrollmentResponseDTO applyForCourse(Long sId, Long cId) {
 		log.info("creating new enrollment for student {} in course {}", sId, cId);
 
 		// 1. Verify Student via Student Service
-		try {
-			StudentFeignDTO student = studentClient.getStudentById(sId);
-			if (student == null) {
-				log.warn("not found: student {} missing in student service", sId);
-				throw new ResourceNotFoundException("Student not found with ID: " + sId);
-			}
-		} catch (feign.FeignException.NotFound e) {
-			log.warn("not found: student {} not in student service", sId);
+		StudentFeignDTO student = studentClient.getStudentById(sId);
+		if (student == null) {
+			log.warn("not found: student {} missing in student service", sId);
 			throw new ResourceNotFoundException("Student not found with ID: " + sId);
-		} catch (Exception e) {
-			log.error("error: student service is down/unreachable");
-			throw new APIException(HttpStatus.SERVICE_UNAVAILABLE, "Student Service is currently unreachable.");
 		}
 
-		// Verify Course
+		// 2. Verify Course
 		Course course = courseRepo.findById(cId).orElseThrow(() -> {
 			log.warn("apply failed: course {} not found in db", cId);
 			return new ResourceNotFoundException("Course not found with ID: " + cId);
 		});
 
-		// Course Status Check
+		// 3. Course Status Check
 		if (course.getStatus() != Status.ACTIVE) {
 			log.warn("apply failed: course {} is inactive", cId);
 			throw new APIException(HttpStatus.BAD_REQUEST, "Cannot apply: Course is currently INACTIVE.");
 		}
 
-		// Duplicate Enrollment Check
+		// 4. Duplicate Enrollment Check
 		if (enrollmentRepo.existsByStudentIdAndCourse_CourseId(sId, cId)) {
 			log.warn("apply failed: student {} already applied for course {}", sId, cId);
-			throw new APIException(HttpStatus.BAD_REQUEST,
-					"Duplicate enrollment: You are already applied for this course.");
+			throw new APIException(HttpStatus.BAD_REQUEST, "Duplicate enrollment: Already applied for this course.");
 		}
 
-		// Create Enrollment
+		// 5. Create Enrollment
 		Enrollment enrollment = new Enrollment();
 		enrollment.setStudentId(sId);
 		enrollment.setCourse(course);
 		enrollment.setStatus(Status.PENDING);
-		enrollment.setDate(LocalDateTime.now());
+		enrollment.setDate(java.time.LocalDateTime.now());
 
-		EnrollmentResponseDTO saved = mapToCustomDto(enrollmentRepo.save(enrollment));
-		log.info("done! enrollment created for student {} with id {}", sId, saved.getEnrollmentId());
-		return saved;
+		// 6. Save and Notify
+		Enrollment savedEntity = enrollmentRepo.save(enrollment);
+		log.info("done! enrollment created for student {} with id {}", sId, savedEntity.getEnrollmentId());
+
+		// Notification Logic (Manual try-catch to keep it non-blocking)
+		try {
+			Long creatorAdminId = course.getCreatedByAdminId();
+			log.info("ACTION: Notifying Course Creator (Admin ID: {}) about enrollment request", creatorAdminId);
+			UserFeignDTO admin = userClient.getUserById(creatorAdminId);
+			if (admin != null) {
+				String message = "Hello " + admin.getName() + ", a new student (" + student.getName()
+						+ ") has applied for your course: " + course.getTitle() + ". Please review enrollment ID: "
+						+ savedEntity.getEnrollmentId();
+				notificationClient.sendNotification(admin.getUserId(), savedEntity.getEnrollmentId(), message,
+						"ENROLLMENT_APPROVAL_REQUIRED", admin.getEmail());
+			}
+		} catch (Exception e) {
+			log.error("NOTIFICATION ERROR: Failed to notify course creator: " + e.getMessage());
+		}
+		return mapToCustomDto(savedEntity);
+	}
+
+	// Fallback for applyForCourse
+	public EnrollmentResponseDTO applyForCourseFallback(Long sId, Long cId, Throwable t) {
+		log.error("FALLBACK: Service verification failed for applyForCourse. Reason: {}", t.getMessage());
+		throw new APIException(HttpStatus.SERVICE_UNAVAILABLE,
+				"External services (Student/Identity) are currently unavailable. Please try again later.");
 	}
 
 	@Override
+	@CircuitBreaker(name = "enrollmentService", fallbackMethod = "updateStatusFallback")
 	public EnrollmentResponseDTO updateEnrollmentStatus(Map<String, Object> data) {
 		Long eId = Long.valueOf(data.get("enrollmentId").toString());
 		Long aId = Long.valueOf(data.get("adminId").toString());
@@ -152,41 +171,54 @@ public class EnrollmentServiceImpl implements EnrollmentService {
 
 		log.info("updating enrollment {} to status: {}", eId, status);
 
-		// Verify Enrollment
+		// 1. Verify Enrollment
 		Enrollment enrollment = enrollmentRepo.findById(eId).orElseThrow(() -> {
 			log.warn("update failed: enrollment {} not found in db", eId);
 			return new ResourceNotFoundException("Enrollment not found with ID: " + eId);
 		});
 
-		// Verify Admin via Identity Service
-		try {
-			UserFeignDTO admin = userClient.getUserById(aId);
-			if (admin == null || !Role.UNIV_ADMIN.equals(admin.getRole())) {
-				log.warn("unauthorized: user {} is not an admin in identity service", aId);
-				throw new APIException(HttpStatus.FORBIDDEN,
-						"Access Denied: Only University Admins can update status.");
-			}
-		} catch (feign.FeignException e) {
-			log.error("error: feign status code {} for identity service", e.status());
-			if (e.status() == 404 || e.status() == 500 || e.status() == 403
-					|| e.contentUTF8().toLowerCase().contains("not found")) {
-				log.error("not found: admin {} missing in identity service", aId);
-				throw new ResourceNotFoundException("Admin not found with ID: " + aId);
-			}
-			throw new APIException(HttpStatus.SERVICE_UNAVAILABLE, "Identity Service is unreachable.");
+		// 2. Verify Admin via Identity Service
+		UserFeignDTO admin = userClient.getUserById(aId);
+		if (admin == null || !Role.UNIV_ADMIN.equals(admin.getRole())) {
+			log.warn("unauthorized: user {} is not an admin", aId);
+			throw new APIException(HttpStatus.FORBIDDEN, "Access Denied: Only University Admins can update status.");
 		}
 
+		// 3. Check for Changes
 		if (enrollment.getStatus().equals(status) && aId.equals(enrollment.getApprovedByAdminId())) {
 			log.info("no changes detected for enrollment {}", eId);
 			throw new APIException(HttpStatus.BAD_REQUEST, "No changes detected. Enrollment is already " + status);
 		}
 
+		// 4. Update and Save
 		enrollment.setStatus(status);
 		enrollment.setApprovedByAdminId(aId);
-
-		EnrollmentResponseDTO updated = mapToCustomDto(enrollmentRepo.save(enrollment));
+		Enrollment savedEnrollment = enrollmentRepo.save(enrollment);
 		log.info("patch: enrollment {} updated successfully to {}", eId, status);
-		return updated;
+
+		// 5. Notify Student
+		try {
+			log.info("ACTION: Notifying Student via Student Service for Enrollment {}", eId);
+			StudentFeignDTO student = studentClient.getStudentById(enrollment.getStudentId());
+			if (student != null) {
+				String message = (status == Status.ACTIVE || status == Status.APPROVE)
+						? "Your enrollment has been APPROVED."
+						: "Your enrollment has been REJECTED.";
+				notificationClient.sendNotification(student.getUserId(), savedEnrollment.getEnrollmentId(), message,
+						"ENROLLMENT_STATUS_UPDATE", student.getEmail());
+			}
+		} catch (Exception e) {
+			log.error("NOTIFICATION ERROR: " + e.getMessage());
+		}
+
+		return mapToCustomDto(savedEnrollment);
+	}
+
+	// Fallback for updateEnrollmentStatus
+	public EnrollmentResponseDTO updateStatusFallback(Map<String, Object> data, Throwable t) {
+		log.error("FALLBACK: Identity Service unreachable during status update. Reason: {}", t.getMessage());
+		throw new APIException(HttpStatus.SERVICE_UNAVAILABLE,
+				"Identity Service is unreachable. Cannot verify Admin permissions at this time.");
 	}
 
 	@Override
@@ -197,8 +229,6 @@ public class EnrollmentServiceImpl implements EnrollmentService {
 			log.warn("not found: no records found with status {}", status);
 			throw new ResourceNotFoundException("No enrollment records found with status: " + status);
 		}
-
-		log.info("getting {} enrollments with status {}", list.size(), status);
 		return list.stream().map(this::mapToCustomDto).toList();
 	}
 
@@ -210,8 +240,6 @@ public class EnrollmentServiceImpl implements EnrollmentService {
 			log.warn("db is empty: no enrollments found");
 			throw new ResourceNotFoundException("No enrollment records found in the database.");
 		}
-
-		log.info("getting total of {} enrollment records", list.size());
 		return list.stream().map(this::mapToCustomDto).toList();
 	}
 }

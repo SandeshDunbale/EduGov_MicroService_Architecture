@@ -15,4 +15,8 @@ public interface ProgramService {
 	ProgramDTO updateProgramById(Long id, Program details);
 
 	List<ProgramDTO> getAllPrograms();
+
+	List<ProgramDTO> getProgramsByStatus(String status);
+	
+	
 }

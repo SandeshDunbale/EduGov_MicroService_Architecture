@@ -2,13 +2,13 @@ package com.project.edugov.service;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 import org.modelmapper.ModelMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.project.edugov.client.IdentityClient;
-import com.project.edugov.client.NotificationClient;
 import com.project.edugov.dto.StudentDTO;
 import com.project.edugov.dto.StudentResponseDTO;
 import com.project.edugov.dto.UserCreateRequest;
@@ -87,10 +87,10 @@ public class StudentServiceImpl implements StudentService {
         log.info("Approving Student ID: {} with Identity User ID: {}", id, student.getUserId());
         
         // This sends "APPROVE" as a parameter, NOT as part of the URL path
-        identityClient.updateStatus(student.getUserId(), "APPROVE"); 
+        UserResponseDTO identityData =identityClient.updateStatus(student.getUserId(), "APPROVE"); 
         
-        student.setStatus(Status.APPROVE);
-        return convertToResponseDTO(studentRepo.save(student), null);
+       student.setStatus(Status.APPROVE);
+        return convertToResponseDTO(studentRepo.save(student), identityData);
     }
 
     @Override
@@ -177,13 +177,27 @@ public class StudentServiceImpl implements StudentService {
     
     
     @Override
-    public Optional<StudentResponseDTO> getStudentById(Long id) {
-        return studentRepo.findById(id).map(s -> {
-            UserResponseDTO identityData = identityClient.getUserById(s.getUserId());
-            return convertToResponseDTO(s, identityData);
-        });
-    }
+   public Optional<StudentResponseDTO> getStudentById(Long id) {  
+    	return studentRepo.findById(id).map(s -> {      
+    		UserResponseDTO identityData = identityClient.getUserById(s.getUserId());
+           return convertToResponseDTO(s, identityData);
+     });
+    }   
     
+    
+//    
+//    @Override
+//    public StudentResponseDTO getStudentById(Long id) {
+//        // 1. Find the student or throw the custom exception immediately
+//        Student student = studentRepo.findById(id)
+//            .orElseThrow(() -> new ResourceNotFoundException("Student not found with id: " + id));
+//
+//        // 2. If found, fetch identity data
+//        UserResponseDTO identityData = identityClient.getUserById(student.getUserId());
+//
+//        // 3. Return the mapped DTO (No Optional wrapper needed in the return type)
+//        return convertToResponseDTO(student, identityData);
+//    }
     
     @Override
     public List<StudentResponseDTO> getStudentsByStatus(Status status) {
@@ -256,8 +270,22 @@ public class StudentServiceImpl implements StudentService {
         return result;
     }
 
-
-    
-    
-    
+    //Module 6 requirements
+    @Override
+    public List<StudentResponseDTO> getAllStudents() {
+        return studentRepo.findAll().stream()
+                .map(student -> {
+                    // Fetch email/name for each student from Identity Service
+                    UserResponseDTO identityData = null;
+                    try {
+                        identityData = identityClient.getUserById(student.getUserId());
+                    } catch (Exception e) {
+                        log.warn("Could not fetch Identity data for User ID: {}", student.getUserId());
+                    }
+                    // Use your helper method to map it properly!
+                    return convertToResponseDTO(student, identityData);
+                })
+                .collect(Collectors.toList());
+    }
+ 
 }

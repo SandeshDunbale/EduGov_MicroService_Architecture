@@ -4,6 +4,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -11,12 +12,13 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
-import org.springframework.http.HttpMethod;
+
 import com.project.edugov.security.JwtAuthenticationFilter;
 //import feign.Request.HttpMethod;
 
 @Configuration
 @EnableWebSecurity
+@EnableMethodSecurity
 public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthFilter;
@@ -40,23 +42,22 @@ public class SecurityConfig {
         http
             .csrf(csrf -> csrf.disable())
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/api/auth/**", "/api/identity/register", "/api/identity/status/**","/api/identity/users/**","/api/users/**").permitAll()
-                // 1. PUBLIC ENDPOINTS (No token required - matches the Gateway's RouteValidator)
-                .requestMatchers(
-                        "/api/auth/login", 
-                        "/api/auth/resetPassword", 
-                        "/api/users/recoverEmail"
-                       
-                ).permitAll()
+                .requestMatchers(org.springframework.http.HttpMethod.OPTIONS, "/**").permitAll()
+                
+                // 1. PUBLIC ENDPOINTS
+                .requestMatchers("/api/auth/**", "/api/users/recoverEmail", "/api/identity/register").permitAll()
 
-                // 2. SECURE EVERYTHING ELSE
-                // Notice we removed .hasRole()! We just ensure they are authenticated.
-                // The Gateway handles the specific role restrictions before the request even gets here.
+                // 2. INTERNAL USER FETCHING (Order matters!)
+                // Match specific sub-paths FIRST
+                .requestMatchers("/api/users/role/**").hasAnyAuthority("UNIV_ADMIN", "ROLE_UNIV_ADMIN", "PROG_MANAGER", "ROLE_PROG_MANAGER")
+                
+                // Match general user paths SECOND
+                .requestMatchers("/api/users/**").hasAnyAuthority("UNIV_ADMIN", "ROLE_UNIV_ADMIN", "FACULTY", "ROLE_FACULTY", "STUDENT", "ROLE_STUDENT")
+
+                // 3. SECURE EVERYTHING ELSE
                 .anyRequest().authenticated()
             )
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-            
-            // We KEEP this filter because it checks the database for Blacklisted (Logged out) tokens!
             .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
