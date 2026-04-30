@@ -8,7 +8,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import java.util.List;
 
 @FeignClient(
-    name = "ACADEMIC-SERVICE",
+    name = "ACADEMICPROGRAMSERVICEEDUGOV",
     contextId = "remoteProgramClient",
     path = "/programs"
 )

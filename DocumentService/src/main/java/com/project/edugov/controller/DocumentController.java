@@ -21,7 +21,7 @@ import com.project.edugov.service.DocumentService;
 import lombok.RequiredArgsConstructor;
 
 @RestController
-@RequestMapping("/documents")
+@RequestMapping("/api/documents")
 @RequiredArgsConstructor
 public class DocumentController {
 

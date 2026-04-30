@@ -32,10 +32,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) throws ServletException {
         String path = request.getServletPath();
-        // Skip JWT check for these specific paths
         return path.startsWith("/api/auth/") || 
-               path.equals("/api/identity/register") || 
-               path.startsWith("/api/identity/status/");
+               path.equals("/api/identity/register") ||
+               path.equals("/api/users/recoverEmail");
+        // DO NOT include /api/users/ here! We want the filter to run for user fetching.
     }
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
