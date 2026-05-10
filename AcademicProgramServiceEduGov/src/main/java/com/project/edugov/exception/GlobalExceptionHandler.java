@@ -51,12 +51,18 @@ public class GlobalExceptionHandler {
 	}
 
 	// Handles 404 - Resource missing
+	// In IDENTITY SERVICE GlobalExceptionHandler.java
 	@ExceptionHandler(ResourceNotFoundException.class)
 	public ResponseEntity<ErrorDetails> handleResourceNotFound(ResourceNotFoundException ex, WebRequest request) {
-		ErrorDetails error = new ErrorDetails(LocalDateTime.now(), 404, "Not Found", ex.getMessage(), getPath(request));
-		return new ResponseEntity<>(error, HttpStatus.NOT_FOUND);
+	    ErrorDetails error = new ErrorDetails(
+	        LocalDateTime.now(), 
+	        HttpStatus.NOT_FOUND.value(), 
+	        "Not Found", 
+	        ex.getMessage(), 
+	        getPath(request)
+	    );
+	    return new ResponseEntity<>(error, HttpStatus.NOT_FOUND); // CRITICAL: This must be 404
 	}
-
 	// Handles custom business logic errors
 	@ExceptionHandler(APIException.class)
 	public ResponseEntity<ErrorDetails> handleAPIException(APIException ex, WebRequest request) {

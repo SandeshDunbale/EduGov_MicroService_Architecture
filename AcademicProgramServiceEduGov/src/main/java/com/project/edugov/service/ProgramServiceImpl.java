@@ -1,5 +1,6 @@
 package com.project.edugov.service;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -18,7 +19,6 @@ import com.project.edugov.model.Role;
 import com.project.edugov.model.Status;
 import com.project.edugov.repository.ProgramRepository;
 
-import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -32,10 +32,11 @@ public class ProgramServiceImpl implements ProgramService {
 	private final ModelMapper modelMapper;
 	private final NotificationClient notificationClient;
 
-	// HELPER METHOD
+	// Convert entity to DTO and enrich with Admin data
 	private ProgramDTO mapToCustomDto(Program program) {
 		ProgramDTO dto = modelMapper.map(program, ProgramDTO.class);
 		try {
+			// Fetch administrator details from identity service
 			UserFeignDTO admin = userClient.getUserById(program.getCreatedByAdminId());
 			if (admin != null) {
 				dto.setAdminId(admin.getUserId());
@@ -45,113 +46,183 @@ public class ProgramServiceImpl implements ProgramService {
 				dto.setAdminId(program.getCreatedByAdminId());
 			}
 		} catch (Exception e) {
-			log.error("error: identity service unreachable for admin id {}", program.getCreatedByAdminId());
+			// Extract root cause for accurate logging
+			Throwable root = e;
+			while (root.getCause() != null)
+				root = root.getCause();
+			String errorInfo = root.getMessage() != null ? root.getMessage() : "";
+
+			if (!errorInfo.contains("404") && !errorInfo.contains("NotFound")) {
+				log.error("[SYSTEM ERROR] Service connection failed for Admin ID: {}", program.getCreatedByAdminId());
+				dto.setAdminName("Information temporarily unavailable");
+			} else {
+				log.warn("[DATA NOT FOUND] Admin record missing in Identity system for ID: {}",
+						program.getCreatedByAdminId());
+				dto.setAdminName("Unknown Administrator for the requested record.");
+			}
 			dto.setAdminId(program.getCreatedByAdminId());
-			dto.setAdminName("Information Unavailable");
-			dto.setAdminEmail("N/A");
+			dto.setAdminEmail("Not available");
 		}
 		return dto;
 	}
 
 	@Override
-	@CircuitBreaker(name = "identityService", fallbackMethod = "createProgramFallback")
 	public ProgramDTO createProgram(Program program, Long adminId) {
-		log.info("creating new program with title: {}", program.getTitle());
+		// Log start of creation request
+		log.info("[START PROCESS] [POST] Request to /programs/admin/{}", adminId);
+		log.info("[ACTION] Validating input for program: {}", program.getTitle());
 
+		// Validate if Admin ID is present
 		if (adminId == null || adminId <= 0) {
-			log.warn("create failed: admin id is invalid or null");
-			throw new APIException(HttpStatus.BAD_REQUEST, "A valid Admin ID is required.");
+			log.warn("[VALIDATION FAILED] Admin ID is missing or non-positive");
+			throw new APIException(HttpStatus.BAD_REQUEST,
+					"A valid Administrator ID is required to perform this action.");
 		}
 
-		UserFeignDTO admin = userClient.getUserById(adminId);
+		// Validate start date is not historical
+		if (program.getStartDate() != null && program.getStartDate().isBefore(LocalDate.now())) {
+			log.warn("[VALIDATION FAILED] Requested start date is in the past");
+			throw new APIException(HttpStatus.BAD_REQUEST, "The program start date cannot be in the past.");
+		}
 
+		// Validate chronological order of dates
+		if (program.getStartDate() != null && program.getEndDate() != null
+				&& !program.getEndDate().isAfter(program.getStartDate())) {
+			log.warn("[VALIDATION FAILED] End date must follow start date");
+			throw new APIException(HttpStatus.BAD_REQUEST,
+					"The program end date must be scheduled after the start date.");
+		}
+
+		// Verify external user service connectivity
+		UserFeignDTO admin = null;
+		try {
+			admin = userClient.getUserById(adminId);
+		} catch (Exception e) {
+			Throwable rootCause = e;
+			while (rootCause.getCause() != null)
+				rootCause = rootCause.getCause();
+			String errorMsg = rootCause.getMessage() != null ? rootCause.getMessage() : "";
+
+			if (errorMsg.contains("404") || errorMsg.contains("403") || errorMsg.contains("NotFound")) {
+				log.warn("[AUTH FAILED] Admin ID {} not found in system", adminId);
+				admin = null;
+			} else {
+				log.error("[CRITICAL] Identity Service is currently unreachable");
+				throw new APIException(HttpStatus.SERVICE_UNAVAILABLE,
+						"The system is unable to verify administrator credentials. Please contact support.");
+			}
+		}
+
+		// Verify user has administrative permissions
 		if (admin == null || !Role.UNIV_ADMIN.equals(admin.getRole())) {
-			log.warn("unauthorized: user {} is not an admin in identity service", adminId);
-			throw new APIException(HttpStatus.FORBIDDEN, "Access Denied: Only University Admins can create programs.");
+			log.warn("[AUTH FAILED] User ID {} lacks administrative privileges", adminId);
+			throw new APIException(HttpStatus.FORBIDDEN,
+					"Access Denied: User is not authorized as a University Administrator.");
 		}
 
+		// Ensure program title uniqueness
 		if (programRepo.existsByTitleIgnoreCase(program.getTitle())) {
-			log.warn("conflict: program title '{}' already exists in db", program.getTitle());
-			throw new APIException(HttpStatus.BAD_REQUEST, "Program title already exists.");
+			log.warn("[CONFLICT] Program title '{}' is already registered", program.getTitle());
+			throw new APIException(HttpStatus.BAD_REQUEST, "The program title provided already exists in the system.");
 		}
 
+		// Persistence logic for new program
 		program.setCreatedByAdminId(adminId);
 		Program savedProgram = programRepo.save(program);
-		log.info("program created successfully with id {}", savedProgram.getProgramId());
+		log.info("[DATABASE SUCCESS] Program record persisted with ID: {}", savedProgram.getProgramId());
 
+		// Broadcast alerts to student population
 		try {
-			log.info("ACTION: Notifying all students about new program: {}", savedProgram.getTitle());
+			log.info("[NOTIFICATION PROCESS] Initiating student alert broadcast");
 			List<UserFeignDTO> students = userClient.getUsersByRole("STUDENT");
 			for (UserFeignDTO student : students) {
 				try {
 					notificationClient.sendNotification(student.getUserId(), savedProgram.getProgramId(),
-							"New Program Alert: " + savedProgram.getTitle() + " is now open for enrollment!",
+							"New Program Alert: " + savedProgram.getTitle() + " is now open for enrollment.",
 							"PROGRAM_ANNOUNCEMENT", student.getEmail());
-				} catch (Exception e) {
-					log.error("Failed to send notification to student ID {}: {}", student.getUserId(), e.getMessage());
+				} catch (Exception ex) {
+					log.error("[NOTIFICATION FAILED] Delivery failed for Student ID: {}", student.getUserId());
 				}
 			}
-		} catch (Exception e) {
-			log.error("GLOBAL NOTIFICATION ERROR: " + e.getMessage());
+		} catch (Exception ex) {
+			log.error("[CRITICAL] Notification service failed during broadcast: {}", ex.getMessage());
 		}
 
+		log.info("[SUCCESS] POST request for program creation completed successfully");
 		return mapToCustomDto(savedProgram);
-	}
-
-	public ProgramDTO createProgramFallback(Program program, Long adminId, Throwable t) {
-		log.error("FALLBACK: Identity Service is unreachable for Admin verification. Error: {}", t.getMessage());
-		throw new APIException(HttpStatus.SERVICE_UNAVAILABLE,
-				"The Identity Service is currently unavailable. Program creation cannot be verified at this time.");
 	}
 
 	@Override
 	public ProgramDTO getProgramById(Long id) {
-		log.info("fetching details for program id: {}", id);
+		// Log specific fetch request
+		log.info("[START PROCESS] [GET] Request to /programs/{}", id);
+
 		if (id == null || id <= 0) {
-			throw new APIException(HttpStatus.BAD_REQUEST, "Invalid Program ID provided.");
+			log.warn("[VALIDATION FAILED] Non-positive ID: {}", id);
+			throw new APIException(HttpStatus.BAD_REQUEST, "The provided Program ID is invalid.");
 		}
+
+		// Find program or throw custom error
 		Program program = programRepo.findById(id).orElseThrow(() -> {
-			log.warn("not found: program with id {} not in db", id);
-			return new ResourceNotFoundException("Program not found with ID: " + id);
+			log.warn("[DATA NOT FOUND] No record exists for Program ID: {}", id);
+			return new ResourceNotFoundException("The requested program could not be found in our records.");
 		});
-		log.info("getting program with title : '{}'", program.getTitle());
+
+		log.info("[SUCCESS] GET request processed for ID: {}", id);
 		return mapToCustomDto(program);
 	}
 
 	@Override
 	public List<ProgramDTO> searchPrograms(String title) {
-		log.info("fetching programs matching keyword: {}", title);
+		// Log search operation
+		log.info("[START PROCESS] [GET] Request to /programs/search?title={}", title);
+
 		if (title == null || title.trim().isEmpty()) {
-			throw new APIException(HttpStatus.BAD_REQUEST, "Search keyword cannot be empty.");
+			log.warn("[VALIDATION FAILED] Null or blank search string provided");
+			throw new APIException(HttpStatus.BAD_REQUEST, "Please provide a valid search keyword.");
 		}
+
+		// Fetch matching program results
 		List<Program> programs = programRepo.findByTitleContainingIgnoreCase(title);
 		if (programs.isEmpty()) {
-			log.warn("not found: no programs match the title '{}'", title);
-			throw new ResourceNotFoundException("No programs found matching: " + title);
+			log.warn("[DATA NOT FOUND] No programs match title: {}", title);
+			throw new ResourceNotFoundException("No programs match the search criteria provided.");
 		}
-		log.info("getting {} programs matching this title", programs.size());
+
+		log.info("[SUCCESS] Search returned {} matching programs", programs.size());
 		return programs.stream().map(this::mapToCustomDto).toList();
 	}
 
 	@Override
 	public ProgramDTO updateProgramById(Long id, Program details) {
-		log.info("updating program {} with new info...", id);
-		Program existingProgram = programRepo.findById(id)
-				.orElseThrow(() -> new ResourceNotFoundException("Program not found with ID: " + id));
+		// Log update request
+		log.info("[START PROCESS] [PUT/PATCH] Request to /programs/{}", id);
+
+		// Retrieve existing record from database
+		Program existingProgram = programRepo.findById(id).orElseThrow(() -> {
+			log.warn("[DATA NOT FOUND] Update target ID {} not found", id);
+			return new ResourceNotFoundException("Cannot update: The requested program record was not found.");
+		});
 
 		boolean isChanged = false;
+
+		// Conditional logic for updating title
 		if (details.getTitle() != null && !details.getTitle().equalsIgnoreCase(existingProgram.getTitle())) {
 			if (programRepo.existsByTitleIgnoreCase(details.getTitle())) {
-				log.warn("update failed: title '{}' already in use", details.getTitle());
-				throw new APIException(HttpStatus.BAD_REQUEST, "Title already in use.");
+				log.warn("[CONFLICT] Duplicate title during update: {}", details.getTitle());
+				throw new APIException(HttpStatus.BAD_REQUEST, "The new title is already assigned to another program.");
 			}
 			existingProgram.setTitle(details.getTitle());
 			isChanged = true;
 		}
+
+		// Map description if provided
 		if (details.getDescription() != null && !details.getDescription().equals(existingProgram.getDescription())) {
 			existingProgram.setDescription(details.getDescription());
 			isChanged = true;
 		}
+
+		// Update dates if changed
 		if (details.getStartDate() != null && !details.getStartDate().equals(existingProgram.getStartDate())) {
 			existingProgram.setStartDate(details.getStartDate());
 			isChanged = true;
@@ -160,45 +231,69 @@ public class ProgramServiceImpl implements ProgramService {
 			existingProgram.setEndDate(details.getEndDate());
 			isChanged = true;
 		}
+
+		// Update life-cycle status
 		if (details.getStatus() != null && !details.getStatus().equals(existingProgram.getStatus())) {
 			existingProgram.setStatus(details.getStatus());
 			isChanged = true;
 		}
 
+		// Verify if any modifications were submitted
 		if (!isChanged) {
-			log.info("no changes detected for program id: {}", id);
-			throw new APIException(HttpStatus.BAD_REQUEST, "No changes detected. Program is already up to date.");
+			log.warn("[VALIDATION FAILED] Update request contains no new information");
+			throw new APIException(HttpStatus.BAD_REQUEST,
+					"No changes detected. The program record is already up to date.");
 		}
 
+		// Verify date consistency before saving
+		if (!existingProgram.getEndDate().isAfter(existingProgram.getStartDate())) {
+			log.warn("[VALIDATION FAILED] Final date range is logically inconsistent");
+			throw new APIException(HttpStatus.BAD_REQUEST,
+					"Validation Error: The end date must occur after the start date.");
+		}
+
+		// Save updated record
 		Program saved = programRepo.save(existingProgram);
-		log.info("program {} updated successfully", saved.getProgramId());
+		log.info("[DATABASE SUCCESS] Program ID {} updated in database", saved.getProgramId());
 		return mapToCustomDto(saved);
 	}
 
 	@Override
 	public List<ProgramDTO> getAllPrograms() {
-		log.info("fetching full list of programs...");
+		// Log bulk retrieval
+		log.info("[START PROCESS] [GET] Request to /programs/all");
+
 		List<Program> programs = programRepo.findAll();
 		if (programs.isEmpty()) {
-			log.warn("db is empty: no programs registered");
-			throw new ResourceNotFoundException("No programs are currently registered.");
+			log.warn("[DATA NOT FOUND] Database contains no program entries");
+			throw new ResourceNotFoundException("There are currently no programs registered in the system.");
 		}
-		log.info("Total {} programs found", programs.size());
+
+		log.info("[SUCCESS] Bulk program retrieval successful");
 		return programs.stream().map(this::mapToCustomDto).toList();
 	}
 
 	@Override
 	public List<ProgramDTO> getProgramsByStatus(String status) {
-		log.info("fetching programs with status: {}", status);
-		Status enumStatus = Status.valueOf(status.toUpperCase());
-		List<Program> programs = programRepo.findByStatus(enumStatus);
+		// Log filtered retrieval
+		log.info("[START PROCESS] [GET] Request to /programs/status/{}", status);
 
-		if (programs.isEmpty()) {
-			log.warn("not found: no programs found with status {}", status);
-			throw new ResourceNotFoundException("No programs are currently registered with status: " + status);
+		try {
+			// Convert string input to Enum type
+			Status enumStatus = Status.valueOf(status.toUpperCase());
+			List<Program> programs = programRepo.findByStatus(enumStatus);
+
+			if (programs.isEmpty()) {
+				log.warn("[DATA NOT FOUND] No programs matching status: {}", status);
+				throw new ResourceNotFoundException("No programs currently exist with the requested status.");
+			}
+
+			log.info("[SUCCESS] Filtered results retrieved for status: {}", status);
+			return programs.stream().map(this::mapToCustomDto).collect(Collectors.toList());
+		} catch (IllegalArgumentException e) {
+			// Handle invalid status types
+			log.warn("[VALIDATION FAILED] Client provided invalid status constant: {}", status);
+			throw new APIException(HttpStatus.BAD_REQUEST, "The requested status is not recognized by the system.");
 		}
-
-		log.info("getting {} programs with status {}", programs.size(), status);
-		return programs.stream().map(this::mapToCustomDto).collect(Collectors.toList());
 	}
 }

@@ -14,8 +14,8 @@ import feign.RequestInterceptor;
 import jakarta.servlet.http.HttpServletRequest;
 
 @SpringBootApplication
-@EnableFeignClients(basePackages = "com.project.edugov.client") // Ensure this covers the fallback package
-@ComponentScan(basePackages = "com.project.edugov")      // Ensure this scans the @Component
+@EnableFeignClients(basePackages = "com.project.edugov.client") 
+@ComponentScan(basePackages = "com.project.edugov")     
 public class AcademicProgramServiceEduGovApplication {
 
 	public static void main(String[] args) {
