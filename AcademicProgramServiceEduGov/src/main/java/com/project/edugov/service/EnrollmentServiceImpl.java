@@ -1,6 +1,5 @@
 package com.project.edugov.service;
 
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
@@ -41,12 +40,12 @@ public class EnrollmentServiceImpl implements EnrollmentService {
 	private final ModelMapper modelMapper;
 	private final NotificationClient notificationClient;
 
-	// Helper method
+	// Maps enrollment to DTO
 	private EnrollmentResponseDTO mapToCustomDto(Enrollment e) {
 		EnrollmentResponseDTO dto = modelMapper.map(e, EnrollmentResponseDTO.class);
 		dto.setEnrollmentDate(e.getDate());
 
-		// Fetch Student Details from Student Service
+		// Fetch Student metadata
 		try {
 			StudentFeignDTO student = studentClient.getStudentById(e.getStudentId());
 			if (student != null) {
@@ -55,12 +54,12 @@ public class EnrollmentServiceImpl implements EnrollmentService {
 				dto.setStudentEmail(student.getEmail());
 			}
 		} catch (Exception ex) {
-			log.error("error: student service unreachable for student id {}", e.getStudentId());
+			log.error("[SYSTEM ERROR] Student Service unreachable for Student ID: {}", e.getStudentId());
 			dto.setStudentId(e.getStudentId());
-			dto.setStudentName("Student Not Found");
+			dto.setStudentName("Information temporarily unavailable");
 		}
 
-		// Fetch Faculty Details from Registration Service
+		// Fetch Faculty metadata
 		if (e.getCourse() != null) {
 			dto.setCourseId(e.getCourse().getCourseId());
 			dto.setCourseTitle(e.getCourse().getTitle());
@@ -73,13 +72,13 @@ public class EnrollmentServiceImpl implements EnrollmentService {
 						dto.setFacultyName(faculty.getName());
 					}
 				} catch (Exception ex) {
-					log.error("error: registration service unreachable for faculty id {}", fId);
-					dto.setFacultyName("Faculty Not Found");
+					log.error("[SYSTEM ERROR] Registration Service unreachable for Faculty ID: {}", fId);
+					dto.setFacultyName("Information temporarily unavailable");
 				}
 			}
 		}
 
-		// Fetch Admin Details from Identity Service
+		// Fetch Admin metadata
 		if (e.getApprovedByAdminId() != null) {
 			try {
 				UserFeignDTO admin = userClient.getUserById(e.getApprovedByAdminId());
@@ -88,9 +87,9 @@ public class EnrollmentServiceImpl implements EnrollmentService {
 					dto.setApprovedByAdminName(admin.getName());
 				}
 			} catch (Exception ex) {
-				log.error("error: identity service unreachable for admin id {}", e.getApprovedByAdminId());
+				log.error("[SYSTEM ERROR] Identity Service unreachable for Admin ID: {}", e.getApprovedByAdminId());
 				dto.setApprovedByAdminId(e.getApprovedByAdminId());
-				dto.setApprovedByAdminName("Admin Service Unavailable");
+				dto.setApprovedByAdminName("Information temporarily unavailable");
 			}
 		}
 		return dto;
@@ -98,125 +97,233 @@ public class EnrollmentServiceImpl implements EnrollmentService {
 
 	@Override
 	public EnrollmentResponseDTO applyForCourse(Long sId, Long cId) {
-		log.info("creating new enrollment for student {} in course {}", sId, cId);
+		// Log entry point
+		log.info("[START PROCESS] [POST] Request to /enrollments/apply");
+		log.info("[ACTION] Applying Student ID {} for Course ID {}", sId, cId);
+
+		// Verify student existence
 		StudentFeignDTO student = null;
-		Course course = null;
 		try {
 			student = studentClient.getStudentById(sId);
-			if (student == null) {
-				log.warn("not found: student {} missing in student service", sId);
-				throw new ResourceNotFoundException("Student not found with ID: " + sId);
-			}
-		} catch (feign.FeignException.NotFound e) {
-			throw new ResourceNotFoundException("Student not found with ID: " + sId);
 		} catch (Exception e) {
-			log.error("error: student service is down/unreachable");
-			throw new APIException(HttpStatus.SERVICE_UNAVAILABLE, "Student Service is unreachable.");
+			Throwable root = e;
+			while (root.getCause() != null)
+				root = root.getCause();
+			String errorMsg = root.getMessage() != null ? root.getMessage() : "";
+
+			if (errorMsg.contains("404") || errorMsg.contains("NotFound")) {
+				log.warn("[DATA NOT FOUND] Student ID {} missing", sId);
+				throw new ResourceNotFoundException("The requested student record could not be found.");
+			} else {
+				log.error("[CRITICAL] Student Service is currently unreachable");
+				throw new APIException(HttpStatus.SERVICE_UNAVAILABLE,
+						"Registration Service is unavailable. Please try again later.");
+			}
 		}
-		course = courseRepo.findById(cId).orElseThrow(() -> {
-			log.warn("apply failed: course {} not found in db", cId);
-			return new ResourceNotFoundException("Course not found with ID: " + cId);
+
+		// Verify course existence
+		Course course = courseRepo.findById(cId).orElseThrow(() -> {
+			log.warn("[DATA NOT FOUND] Course ID {} record missing", cId);
+			return new ResourceNotFoundException("The requested course record could not be found.");
 		});
+
+		// Check course status
 		if (course.getStatus() != Status.ACTIVE) {
-			log.warn("apply failed: course {} is inactive", cId);
-			throw new APIException(HttpStatus.BAD_REQUEST, "Cannot apply: Course is currently INACTIVE.");
+			log.warn("[VALIDATION FAILED] Course ID {} is INACTIVE", cId);
+			throw new APIException(HttpStatus.BAD_REQUEST, "Application denied: This course is currently INACTIVE.");
 		}
+
+		// Prevent duplicate applications
 		if (enrollmentRepo.existsByStudentIdAndCourse_CourseId(sId, cId)) {
-			log.warn("apply failed: student {} already applied for course {}", sId, cId);
-			throw new APIException(HttpStatus.BAD_REQUEST, "Duplicate enrollment: Already applied for this course.");
+			log.warn("[CONFLICT] Student {} already applied for Course {}", sId, cId);
+			throw new APIException(HttpStatus.BAD_REQUEST,
+					"Duplicate application: You have already applied for this course.");
 		}
+
+		// Create enrollment entity
 		Enrollment enrollment = new Enrollment();
 		enrollment.setStudentId(sId);
 		enrollment.setCourse(course);
 		enrollment.setStatus(Status.PENDING);
-		enrollment.setDate(LocalDateTime.now());
+		enrollment.setDate(java.time.LocalDateTime.now());
 
+		// Save to database
 		Enrollment savedEntity = enrollmentRepo.save(enrollment);
-		log.info("done! enrollment created for student {} with id {}", sId, savedEntity.getEnrollmentId());
+		log.info("[DATABASE SUCCESS] Enrollment saved ID: {}", savedEntity.getEnrollmentId());
+
+		// Notify course creator
 		try {
 			Long creatorAdminId = course.getCreatedByAdminId();
-			log.info("ACTION: Notifying Course Creator (Admin ID: {}) about enrollment request", creatorAdminId);
 			UserFeignDTO admin = userClient.getUserById(creatorAdminId);
 			if (admin != null) {
 				String message = "Hello " + admin.getName() + ", a new student (" + student.getName()
-						+ ") has applied for your course: " + course.getTitle() + ". Please review the enrollment (ID: "
-						+ savedEntity.getEnrollmentId() + ") for approval.";
+						+ ") has applied for your course: " + course.getTitle() + ". Review ID: "
+						+ savedEntity.getEnrollmentId();
 				notificationClient.sendNotification(admin.getUserId(), savedEntity.getEnrollmentId(), message,
 						"ENROLLMENT_APPROVAL_REQUIRED", admin.getEmail());
+				log.info("[NOTIFICATION] Admin alerted for approval");
 			}
 		} catch (Exception e) {
-			log.error("NOTIFICATION ERROR: Failed to notify course creator: " + e.getMessage());
+			log.error("[SYSTEM] Failed to notify course creator Admin ID: {}", course.getCreatedByAdminId());
 		}
+
+		log.info("[SUCCESS] Application process complete");
 		return mapToCustomDto(savedEntity);
 	}
 
 	@Override
 	public EnrollmentResponseDTO updateEnrollmentStatus(Map<String, Object> data) {
+		// Log update attempt
+		log.info("[START PROCESS] [PUT] Request to /enrollments/update-status");
+
 		Long eId = Long.valueOf(data.get("enrollmentId").toString());
 		Long aId = Long.valueOf(data.get("adminId").toString());
 		Status status = Status.valueOf(data.get("status").toString().toUpperCase());
-		log.info("updating enrollment {} to status: {}", eId, status);
+
+		log.info("[ACTION] Updating Enrollment ID {} to status: {}", eId, status);
+
+		// Verify enrollment existence
 		Enrollment enrollment = enrollmentRepo.findById(eId).orElseThrow(() -> {
-			log.warn("update failed: enrollment {} not found in db", eId);
-			return new ResourceNotFoundException("Enrollment not found with ID: " + eId);
+			log.warn("[DATA NOT FOUND] Enrollment ID {} missing", eId);
+			return new ResourceNotFoundException("The requested enrollment record was not found.");
 		});
+
+		// Verify Admin permissions
+		UserFeignDTO admin = null;
 		try {
-			UserFeignDTO admin = userClient.getUserById(aId);
-			if (admin == null || !Role.UNIV_ADMIN.equals(admin.getRole())) {
-				log.warn("unauthorized: user {} is not an admin", aId);
-				throw new APIException(HttpStatus.FORBIDDEN,
-						"Access Denied: Only University Admins can update status.");
+			admin = userClient.getUserById(aId);
+		} catch (Exception e) {
+			Throwable root = e;
+			while (root.getCause() != null)
+				root = root.getCause();
+			String errorMsg = root.getMessage() != null ? root.getMessage() : "";
+
+			if (errorMsg.contains("404") || errorMsg.contains("403") || errorMsg.contains("NotFound")) {
+				log.warn("[AUTH FAILED] Admin ID {} verification failed", aId);
+				admin = null;
+			} else {
+				log.error("[CRITICAL] Identity Service is currently unreachable");
+				throw new APIException(HttpStatus.SERVICE_UNAVAILABLE,
+						"Identity Service is unreachable. Unable to verify permissions.");
 			}
-		} catch (feign.FeignException e) {
-			log.error("Identity Service error: status code {}", e.status());
-			throw new APIException(HttpStatus.SERVICE_UNAVAILABLE, "Identity Service is unreachable.");
 		}
+
+		// Check role authority
+		if (admin == null || !Role.UNIV_ADMIN.equals(admin.getRole())) {
+			log.warn("[AUTH FAILED] Access denied for User ID: {}", aId);
+			throw new APIException(HttpStatus.FORBIDDEN,
+					"Access Denied: Only University Administrators can approve or reject enrollments.");
+		}
+
+		// Prevent redundant updates
 		if (enrollment.getStatus().equals(status) && aId.equals(enrollment.getApprovedByAdminId())) {
-			log.info("no changes detected for enrollment {}", eId);
-			throw new APIException(HttpStatus.BAD_REQUEST, "No changes detected. Enrollment is already " + status);
+			log.warn("[VALIDATION FAILED] No status changes detected");
+			throw new APIException(HttpStatus.BAD_REQUEST,
+					"No changes detected. Enrollment is already set to the requested status.");
 		}
+
+		// Persist status change
 		enrollment.setStatus(status);
 		enrollment.setApprovedByAdminId(aId);
 		Enrollment savedEnrollment = enrollmentRepo.save(enrollment);
+		log.info("[DATABASE SUCCESS] Enrollment status updated");
+
+		// Notify student decision
 		try {
-			log.info("ACTION: Notifying Student via Student Service for Enrollment {}", eId);
 			StudentFeignDTO student = studentClient.getStudentById(enrollment.getStudentId());
 			if (student != null) {
 				String message = (status == Status.ACTIVE || status == Status.APPROVE)
-						? "Your enrollment has been APPROVED."
-						: "Your enrollment has been REJECTED.";
+						? "Congratulations! Your enrollment request has been APPROVED."
+						: "Regretfully, your enrollment request has been REJECTED.";
 				notificationClient.sendNotification(student.getUserId(), savedEnrollment.getEnrollmentId(), message,
 						"ENROLLMENT_STATUS_UPDATE", student.getEmail());
+				log.info("[NOTIFICATION] Student notified of decision");
 			}
 		} catch (Exception e) {
-			log.error("NOTIFICATION ERROR: " + e.getMessage());
+			log.error("[SYSTEM] Failed to notify student about status update");
 		}
+
+		log.info("[SUCCESS] Status update process complete");
 		return mapToCustomDto(savedEnrollment);
 	}
 
 	@Override
 	public List<EnrollmentResponseDTO> getEnrollmentsByStatus(Status status) {
-		log.info("fetching enrollments with status: {}", status);
+		// Log fetch by status
+		log.info("[START PROCESS] [GET] Request to /enrollments/status/{}", status);
 		List<Enrollment> list = enrollmentRepo.findByStatus(status);
 		if (list.isEmpty()) {
-			log.warn("not found: no records found with status {}", status);
-			throw new ResourceNotFoundException("No enrollment records found with status: " + status);
+			log.warn("[DATA NOT FOUND] No records for status {}", status);
+			throw new ResourceNotFoundException("No enrollment records found matching the requested status.");
 		}
-
-		log.info("getting {} enrollments with status {}", list.size(), status);
+		log.info("[SUCCESS] Filtered records retrieved");
 		return list.stream().map(this::mapToCustomDto).toList();
 	}
 
 	@Override
 	public List<EnrollmentResponseDTO> getAllEnrollments() {
-		log.info("fetching full list of enrollments...");
+		// Log bulk fetch
+		log.info("[START PROCESS] [GET] Request to /enrollments/all");
 		List<Enrollment> list = enrollmentRepo.findAll();
 		if (list.isEmpty()) {
-			log.warn("db is empty: no enrollments found");
-			throw new ResourceNotFoundException("No enrollment records found in the database.");
+			log.warn("[DATA NOT FOUND] Database table empty");
+			throw new ResourceNotFoundException("No enrollment records were found in the system.");
+		}
+		log.info("[SUCCESS] All enrollments retrieved");
+		return list.stream().map(this::mapToCustomDto).toList();
+	}
+
+	@Override
+	public void deleteEnrollment(Long enrollmentId, Long adminId) {
+		// Log delete request
+		log.info("[START PROCESS] [DELETE] Request to /enrollments/delete/{}", enrollmentId);
+
+		// Validate Admin ID
+		if (adminId == null || adminId <= 0) {
+			log.warn("[VALIDATION FAILED] Invalid Admin ID provided");
+			throw new APIException(HttpStatus.BAD_REQUEST, "A valid Administrator reference is required for deletion.");
 		}
 
-		log.info("getting total of {} enrollment records", list.size());
-		return list.stream().map(this::mapToCustomDto).toList();
+		// Verify enrollment exists
+		Enrollment enrollment = enrollmentRepo.findById(enrollmentId).orElseThrow(() -> {
+			log.warn("[DATA NOT FOUND] Deletion target missing ID: {}", enrollmentId);
+			return new ResourceNotFoundException("Cannot delete: The requested enrollment record was not found.");
+		});
+
+		// Verify Admin authority
+		UserFeignDTO admin = null;
+		try {
+			admin = userClient.getUserById(adminId);
+		} catch (Exception e) {
+			log.error("[CRITICAL] Identity Service connection failed");
+			throw new APIException(HttpStatus.SERVICE_UNAVAILABLE,
+					"Identity Service unreachable. Cannot verify deletion authority.");
+		}
+
+		// Role check authority
+		if (admin == null || !Role.UNIV_ADMIN.equals(admin.getRole())) {
+			log.warn("[AUTH FAILED] User {} unauthorized for deletion", adminId);
+			throw new APIException(HttpStatus.FORBIDDEN,
+					"Access Denied: You do not have permission to delete enrollment records.");
+		}
+
+		// Notify student deletion
+		try {
+			StudentFeignDTO student = studentClient.getStudentById(enrollment.getStudentId());
+			if (student != null) {
+				String message = "Notice: Your enrollment for the course '" + enrollment.getCourse().getTitle()
+						+ "' has been deleted by the system administrator.";
+				notificationClient.sendNotification(student.getUserId(), enrollmentId, message, "ENROLLMENT_DELETED",
+						student.getEmail());
+				log.info("[NOTIFICATION] Student alerted of record removal");
+			}
+		} catch (Exception e) {
+			log.error("[SYSTEM] Failed to notify student regarding record deletion");
+		}
+
+		// Final record removal
+		enrollmentRepo.delete(enrollment);
+		log.info("[DATABASE SUCCESS] Enrollment {} permanently removed by Admin {}", enrollmentId, adminId);
+		log.info("[SUCCESS] Deletion process complete");
 	}
 }
