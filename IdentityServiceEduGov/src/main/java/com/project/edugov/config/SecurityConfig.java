@@ -40,21 +40,12 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
+            // 1. ADD THIS LINE: Enable CORS and link it to the source below
             .csrf(csrf -> csrf.disable())
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers(org.springframework.http.HttpMethod.OPTIONS, "/**").permitAll()
-                
-                // 1. PUBLIC ENDPOINTS
                 .requestMatchers("/api/auth/**", "/api/users/recoverEmail", "/api/identity/register").permitAll()
-
-                // 2. INTERNAL USER FETCHING (Order matters!)
-                // Match specific sub-paths FIRST
-                .requestMatchers("/api/users/role/**").hasAnyAuthority("UNIV_ADMIN", "ROLE_UNIV_ADMIN", "PROG_MANAGER", "ROLE_PROG_MANAGER")
-                
-                // Match general user paths SECOND
-                .requestMatchers("/api/users/**").hasAnyAuthority("UNIV_ADMIN", "ROLE_UNIV_ADMIN", "FACULTY", "ROLE_FACULTY", "STUDENT", "ROLE_STUDENT","COMPLIANCE_OFFICER","ROLE_COMPLIANCE_OFFICER")
-
-                // 3. SECURE EVERYTHING ELSE
+                .requestMatchers("/api/audit/internal/log").permitAll()
                 .anyRequest().authenticated()
             )
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
@@ -62,4 +53,6 @@ public class SecurityConfig {
 
         return http.build();
     }
+
+    // 2. ADD THIS BEAN: This defines the actual CORS policy for Spring Security
 }

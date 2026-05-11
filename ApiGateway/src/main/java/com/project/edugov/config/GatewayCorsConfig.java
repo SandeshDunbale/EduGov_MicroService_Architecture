@@ -1,5 +1,7 @@
 package com.project.edugov.config;
 
+import java.util.Arrays;
+
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.cors.CorsConfiguration;
@@ -9,26 +11,21 @@ import org.springframework.web.cors.reactive.UrlBasedCorsConfigurationSource;
 @Configuration
 public class GatewayCorsConfig {
 
-	@Bean
-	public CorsWebFilter corsWebFilter() {
-		CorsConfiguration config = new CorsConfiguration();
+    @Bean
+    public CorsWebFilter corsWebFilter() {
+        CorsConfiguration corsConfig = new CorsConfiguration();
+        
+        // 📍 Precision: Use your specific React origin
+        corsConfig.setAllowedOrigins(Arrays.asList("http://localhost:3000"));
+        corsConfig.setMaxAge(3600L);
+        corsConfig.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+        corsConfig.setAllowedHeaders(Arrays.asList("Authorization", "Content-Type", "Accept", "X-Requested-With"));
+        corsConfig.setAllowCredentials(true);
 
-		// 1. Allow the React frontend port
-		config.addAllowedOrigin("http://localhost:5173");
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/**", corsConfig);
 
-		// 2. Allow all standard headers (Authorization, Content-Type, etc.)
-		config.addAllowedHeader("*");
+        return new CorsWebFilter(source);
+    }
 
-		// 3. Allow all methods (GET, POST, PATCH, PUT, OPTIONS)
-		config.addAllowedMethod("*");
-
-		// 4. Allow credentials (important for cookies/auth)
-		config.setAllowCredentials(true);
-
-		UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-		// Apply this to every route in the gateway
-		source.registerCorsConfiguration("/**", config);
-
-		return new CorsWebFilter(source);
-	}
 }

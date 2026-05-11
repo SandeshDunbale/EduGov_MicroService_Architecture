@@ -21,6 +21,19 @@ public class JwtUtil {
         return Jwts.parserBuilder().setSigningKey(getSignKey()).build().parseClaimsJws(token).getBody();
     }
  
+    // OPTIONAL: Add this if your Gateway filter needs to extract the user ID
+    // to pass it as a header to downstream microservices.
+    public Long extractUserId(final String token) {
+        Claims claims = getClaims(token);
+        return claims.get("userId", Long.class);
+    }
+ 
+    // OPTIONAL: Helper for extracting role
+    public String extractRole(final String token) {
+        Claims claims = getClaims(token);
+        return claims.get("role", String.class);
+    }
+ 
     private Key getSignKey() {
         byte[] keyBytes = Decoders.BASE64.decode(SECRET);
         return Keys.hmacShaKeyFor(keyBytes);

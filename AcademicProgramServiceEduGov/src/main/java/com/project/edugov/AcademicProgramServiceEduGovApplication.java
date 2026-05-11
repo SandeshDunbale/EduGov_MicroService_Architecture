@@ -7,6 +7,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.cloud.openfeign.EnableFeignClients;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
+import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
@@ -15,7 +16,8 @@ import jakarta.servlet.http.HttpServletRequest;
 
 @SpringBootApplication
 @EnableFeignClients(basePackages = "com.project.edugov.client") 
-@ComponentScan(basePackages = "com.project.edugov")     
+@ComponentScan(basePackages = "com.project.edugov")    
+@EnableAsync
 public class AcademicProgramServiceEduGovApplication {
 
 	public static void main(String[] args) {
