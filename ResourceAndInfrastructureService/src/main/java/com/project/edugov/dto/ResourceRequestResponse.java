@@ -17,4 +17,5 @@ public class ResourceRequestResponse {
     private Integer quantity;
     private RequestStatus status;
     private Instant createdAt;
+    String reason;
 }

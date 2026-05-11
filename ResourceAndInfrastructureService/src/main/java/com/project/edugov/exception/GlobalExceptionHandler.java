@@ -23,7 +23,7 @@ import feign.FeignException;
 public class GlobalExceptionHandler {
 
     // =========================================
-    // 404 - NOT FOUND
+    // ✅ 404 - LOCAL ENTITY NOT FOUND
     // =========================================
     @ExceptionHandler(EntityNotFoundException.class)
     public ResponseEntity<Map<String, Object>> handleEntityNotFound(EntityNotFoundException ex) {
@@ -32,7 +32,21 @@ public class GlobalExceptionHandler {
     }
 
     // =========================================
-    // ✅ 503 - DOWNSTREAM SERVICE (SPECIFIC)
+    // ✅ NEW ✅ 404 - DOWNSTREAM NOT FOUND (Program NOT FOUND)
+    // =========================================
+    @ExceptionHandler(FeignException.NotFound.class)
+    public ResponseEntity<Map<String, Object>> handleFeignNotFound(FeignException.NotFound ex) {
+
+        log.warn("404 - Downstream resource not found: {}", ex.getMessage());
+
+        return build(
+                HttpStatus.NOT_FOUND,
+                "Requested resource not found in downstream service"
+        );
+    }
+
+    // =========================================
+    // ✅ 503 - DOWNSTREAM SERVICE DOWN
     // =========================================
     @ExceptionHandler(DownstreamServiceUnavailableException.class)
     public ResponseEntity<Map<String, Object>> handleDownstreamServiceUnavailable(
@@ -51,7 +65,39 @@ public class GlobalExceptionHandler {
     }
 
     // =========================================
-    // 400 - BAD REQUEST (BUSINESS ERRORS)
+    // ✅ NEW ✅ 400 - VALIDATION ERRORS (JSON body)
+    // =========================================
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    public ResponseEntity<Map<String, Object>> handleValidationError(MethodArgumentNotValidException ex) {
+
+        Map<String, String> fieldErrors = new HashMap<>();
+
+        ex.getBindingResult().getFieldErrors()
+                .forEach(error ->
+                        fieldErrors.put(error.getField(), error.getDefaultMessage())
+                );
+
+        Map<String, Object> body = base(HttpStatus.BAD_REQUEST);
+        body.put("message", "Validation failed");
+        body.put("details", fieldErrors);
+
+        return ResponseEntity.badRequest().body(body);
+    }
+
+    // =========================================
+    // ✅ NEW ✅ 400 - CONSTRAINT VIOLATION
+    // =========================================
+    @ExceptionHandler(ConstraintViolationException.class)
+    public ResponseEntity<Map<String, Object>> handleConstraintViolation(ConstraintViolationException ex) {
+
+        Map<String, Object> body = base(HttpStatus.BAD_REQUEST);
+        body.put("message", ex.getMessage());
+
+        return ResponseEntity.badRequest().body(body);
+    }
+
+    // =========================================
+    // ✅ 400 - BUSINESS LOGIC ERRORS
     // =========================================
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<Map<String, Object>> handleBadRequest(IllegalArgumentException ex) {
@@ -66,7 +112,7 @@ public class GlobalExceptionHandler {
     }
 
     // =========================================
-    // 403 - ROLE MISMATCH
+    // ✅ 403 - ROLE MISMATCH
     // =========================================
     @ExceptionHandler(RoleMismatchException.class)
     public ResponseEntity<Map<String, Object>> handleRoleMismatch(RoleMismatchException ex) {
@@ -75,7 +121,7 @@ public class GlobalExceptionHandler {
     }
 
     // =========================================
-    // 409 - DATA CONFLICT
+    // ✅ 409 - DATA INTEGRITY
     // =========================================
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ResponseEntity<Map<String, Object>> handleDataIntegrity(DataIntegrityViolationException ex) {
@@ -84,7 +130,7 @@ public class GlobalExceptionHandler {
     }
 
     // =========================================
-    // ✅ 503 - FEIGN (GENERIC, NO SERVICE NAME)
+    // ✅ 503 - FEIGN (GENERIC)
     // =========================================
     @ExceptionHandler(FeignException.class)
     public ResponseEntity<Map<String, Object>> handleFeignException(FeignException ex) {
@@ -96,7 +142,7 @@ public class GlobalExceptionHandler {
     }
 
     // =========================================
-    // 500 - FALLBACK
+    // ✅ 500 - FALLBACK
     // =========================================
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Map<String, Object>> handleGeneralException(Exception ex) {

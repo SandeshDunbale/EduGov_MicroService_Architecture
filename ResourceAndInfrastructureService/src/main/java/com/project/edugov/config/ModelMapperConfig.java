@@ -41,6 +41,7 @@ public class ModelMapperConfig {
                   .createdAt(src.getCreatedAt())
                   .updatedAt(src.getUpdatedAt())
                   .decisionAt(src.getDecisionAt())
+                  .reason(src.getReason())
                   .build();
           });
 
@@ -59,6 +60,7 @@ public class ModelMapperConfig {
                   .resourceId(res != null ? res.getResourceId() : null)
                   .quantity(src.getQuantity())
                   .createdAt(src.getCreatedAt())
+                  .reason(src.getReason())
                   .build();
           });
 

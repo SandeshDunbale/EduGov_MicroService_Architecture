@@ -20,4 +20,5 @@ public class InfrastructureRequestResponse {
     private Instant createdAt;
     private Instant updatedAt;
     private Instant decisionAt;
+    String reason;
 }

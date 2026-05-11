@@ -265,9 +265,13 @@ public class ResourceRequestServiceImpl implements ResourceRequestService {
         request.setApprovedByUserId(approverUserId);
         request.setDecisionAt(Instant.now());
 
+        // ✅ SET BEFORE SAVE (IMPORTANT)
+        request.setReason(reason);
+
         ResourceRequest saved = requestRepo.save(request);
 
         UserDTO requester = fetchUser(request.getRequesterUserId());
+
         notifyUser(
                 requester.userId(),
                 saved.getRequestId(),
