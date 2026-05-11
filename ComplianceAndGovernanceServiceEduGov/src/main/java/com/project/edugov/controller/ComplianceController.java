@@ -2,7 +2,7 @@ package com.project.edugov.controller;
 
 import com.project.edugov.dto.ComplianceRecordDTO;
 import com.project.edugov.model.ComplianceRecord;
-import com.project.edugov.service.ComplianceServiceImpl;
+import com.project.edugov.service.ComplianceService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -14,12 +14,20 @@ import java.util.List;
 @CrossOrigin(origins = "*")
 public class ComplianceController {
 
-    @Autowired private ComplianceServiceImpl service;
+    // IMPORTANT: Inject Interface for Circuit Breaker Proxy
+    @Autowired 
+    private ComplianceService service;
 
     @PostMapping("/generate/{officerId}")
     public ResponseEntity<String> generate(@PathVariable Long officerId) {
         service.generateCompliance(officerId);
         return ResponseEntity.ok("Scan completed.");
+        
+    }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<ComplianceRecordDTO> getById(@PathVariable Long id) {
+        return ResponseEntity.ok(service.getComplianceById(id));
     }
 
     @PostMapping("/create")

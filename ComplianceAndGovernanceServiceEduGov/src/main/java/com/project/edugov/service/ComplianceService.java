@@ -15,4 +15,6 @@ public interface ComplianceService {
     ComplianceRecordDTO updateCompliance(Long id, ComplianceRecord details);
 
     void deleteCompliance(Long id);
+    
+    ComplianceRecordDTO getComplianceById(Long id);
 }

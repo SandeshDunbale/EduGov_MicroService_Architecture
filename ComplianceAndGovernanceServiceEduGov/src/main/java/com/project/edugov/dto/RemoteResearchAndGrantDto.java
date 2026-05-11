@@ -59,5 +59,13 @@ public class RemoteResearchAndGrantDto {
 
         public BigDecimal getRequestedAmount() { return requestedAmount; }
         public void setRequestedAmount(BigDecimal requestedAmount) { this.requestedAmount = requestedAmount; }
+		public Long getUserId() {
+			// TODO Auto-generated method stub
+			return null;
+		}
+		public String getEmail() {
+			// TODO Auto-generated method stub
+			return null;
+		}
     }
 }

@@ -161,13 +161,13 @@ public class GatewayConfig {
                         .method("POST", "PUT", "DELETE").and().path("/api/audits/**", "/api/compliance/**")
                         .filters(f -> {
                             AuthenticationFilter.Config config = new AuthenticationFilter.Config();
-                            config.setAllowedRoles(List.of("COMPLIANCE_OFFICER"));
+                            config.setAllowedRoles(List.of("COMPLIANCE_OFFICER","GOVT_AUDITOR","ROLE_GOVT_AUDITOR"));
                             return f.filter(authFilter.apply(config));
                         })
                         .uri("lb://COMPLIANCEANDGOVERNANCESERVICEEDUGOV"))
 
                 .route("compliance-auditor-review", r -> r
-                        .method("PATCH").and().path("/api/audits/*/review")
+                        .method("PATCH").and().path("/api/audits/**")
                         .filters(f -> {
                             AuthenticationFilter.Config config = new AuthenticationFilter.Config();
                             config.setAllowedRoles(List.of("GOVT_AUDITOR"));

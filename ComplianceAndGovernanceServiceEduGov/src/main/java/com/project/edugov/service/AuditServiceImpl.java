@@ -1,11 +1,13 @@
 package com.project.edugov.service;
 
+import com.project.edugov.client.NotificationClient; // Added
 import com.project.edugov.client.RemoteUserClient;
 import com.project.edugov.dto.RemoteUserDto;
 import com.project.edugov.exception.AccessDeniedException;
 import com.project.edugov.exception.ResourceNotFoundException;
 import com.project.edugov.model.Audit;
 import com.project.edugov.repository.AuditRepository;
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -26,6 +28,9 @@ public class AuditServiceImpl implements AuditService {
     @Autowired 
     private RemoteUserClient userClient;
 
+    @Autowired
+    private NotificationClient notificationClient; // Injected for notifications
+
     @Override
     public List<Audit> getAllAudits() {
         return auditRepository.findAll();
@@ -39,6 +44,7 @@ public class AuditServiceImpl implements AuditService {
 
     @Override
     @Transactional
+    @CircuitBreaker(name = "auditApi", fallbackMethod = "fallbackCreateAudit")
     public Audit createAudit(Audit audit, Long creatorId) {
         RemoteUserDto creator = userClient.getUserById(creatorId);
         if (creator == null) {
@@ -49,9 +55,15 @@ public class AuditServiceImpl implements AuditService {
         if (audit.getDate() == null) audit.setDate(LocalDate.now());
         if (audit.getStatus() == null) audit.setStatus("SCHEDULED");
 
-        Audit savedAudit = auditRepository.save(audit);
-        logger.info("Audit created by User {}: ID {}", creatorId, savedAudit.getAuditId());
-        return savedAudit;
+        return auditRepository.save(audit);
+    }
+
+    public Audit fallbackCreateAudit(Audit audit, Long creatorId, Throwable t) {
+        logger.error("Circuit Open/Service Down for Audit Creation. Reason: {}", t.getMessage());
+        audit.setStatus("PENDING_VALIDATION");
+        audit.setFindings("User service unavailable. Record saved but requires manual verification.");
+        audit.setOfficerId(creatorId);
+        return auditRepository.save(audit);
     }
 
     @Override
@@ -72,11 +84,11 @@ public class AuditServiceImpl implements AuditService {
             throw new ResourceNotFoundException("Cannot delete: Audit ID " + id + " does not exist.");
         }
         auditRepository.deleteById(id);
-        logger.warn("Audit record ID: {} deleted", id);
     }
 
     @Override
     @Transactional
+    @CircuitBreaker(name = "auditApi", fallbackMethod = "fallbackReviewAudit")
     public Audit reviewAudit(Long auditId, String status, String findings, Long auditorId) {
         RemoteUserDto auditor = userClient.getUserById(auditorId);
         if (auditor == null) {
@@ -91,8 +103,35 @@ public class AuditServiceImpl implements AuditService {
         audit.setStatus(status);
         audit.setFindings(findings);
         audit.setOfficerId(auditorId);
+        Audit savedAudit = auditRepository.save(audit);
 
-        logger.info("Audit ID {} {} by Auditor {}", auditId, status, auditorId);
-        return auditRepository.save(audit);
+        // TRIGGER: Rejection Notification
+        if ("REJECTED".equalsIgnoreCase(status)) {
+            userClient.getUsersByRole("PROG_MANAGER").forEach(pm -> 
+                notificationClient.sendNotification(pm.getUserId(), auditId, 
+                "Audit Rejected. Issue: " + findings, "AUDIT_REJECTION", pm.getEmail())
+            );
+        }
+
+        // TRIGGER: Report Generation Notification
+        if ("REPORT_GENERATED".equalsIgnoreCase(status) || "COMPLETED".equalsIgnoreCase(status)) {
+            String msg = "Audit Report finalized for ID: " + auditId;
+            // Notify Auditor
+            notificationClient.sendNotification(auditorId, auditId, msg, "AUDIT_REPORT", auditor.getEmail());
+            // Notify Program Manager
+            userClient.getUsersByRole("PROG_MANAGER").forEach(pm -> 
+                notificationClient.sendNotification(pm.getUserId(), auditId, msg, "AUDIT_REPORT", pm.getEmail())
+            );
+        }
+
+        return savedAudit;
+    }
+
+    public Audit fallbackReviewAudit(Long auditId, String status, String findings, Long auditorId, Throwable t) {
+        logger.error("Circuit Open for Review. Returning temporary state for Audit {}", auditId);
+        Audit audit = getAuditById(auditId);
+        audit.setStatus("REVIEW_SUSPENDED");
+        audit.setFindings("System cannot verify auditor role at this time.");
+        return audit;
     }
 }

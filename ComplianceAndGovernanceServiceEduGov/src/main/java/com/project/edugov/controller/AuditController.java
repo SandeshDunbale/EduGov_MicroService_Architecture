@@ -21,16 +21,18 @@ public class AuditController {
     @Autowired
     private AuditServiceImpl auditService;
 
-    @PostMapping
+    @PostMapping("/create")
     public ResponseEntity<Audit> createAudit(@RequestBody Audit audit, @RequestHeader("X-User-Id") Long userId) {
         return ResponseEntity.ok(auditService.createAudit(audit, userId));
     }
 
-    @GetMapping
+   
+    @GetMapping("/get")
     public ResponseEntity<List<Audit>> getAllAudits() {
         return ResponseEntity.ok(auditService.getAllAudits());
     }
 
+    
     @GetMapping("/{id}")
     public ResponseEntity<Audit> getAudit(@PathVariable Long id) {
         return ResponseEntity.ok(auditService.getAuditById(id));
@@ -47,7 +49,7 @@ public class AuditController {
         return ResponseEntity.noContent().build();
     }
 
-    @PatchMapping("/{id}/review")
+    @PatchMapping("/review/{id}")
     public ResponseEntity<Audit> reviewAudit(
             @PathVariable Long id,
             @RequestBody AuditReviewDTO reviewDto,
@@ -57,4 +59,3 @@ public class AuditController {
         return ResponseEntity.ok(updatedAudit);
     }
 }
-//Audit
