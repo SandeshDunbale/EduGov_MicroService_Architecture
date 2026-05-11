@@ -22,4 +22,5 @@ public interface StudentRepository extends JpaRepository<Student, Long> {
      * Checks if a profile already exists for a specific user ID.
      */
     boolean existsByUserId(Long userId);
+    
 }

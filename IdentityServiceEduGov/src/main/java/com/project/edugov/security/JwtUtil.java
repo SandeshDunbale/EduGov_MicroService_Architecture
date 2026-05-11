@@ -11,17 +11,13 @@ import org.springframework.stereotype.Component;
 
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.SignatureAlgorithm; // <-- FIXED IMPORT
+import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.security.Keys;
 
 @Component
 public class JwtUtil {
 
-    // IMPORTANT: In production, store this in application.properties!
-    // This is a securely generated 256-bit key required by HS256.
     private static final String SECRET = "413F4428472B4B6250655368566D5970337336763979244226452948404D6351";
-    
-    // Token validity: 24 Hours
     private static final long JWT_TOKEN_VALIDITY = 1000 * 60 * 60 * 24;
 
     private Key getSignKey() {
@@ -29,14 +25,34 @@ public class JwtUtil {
         return Keys.hmacShaKeyFor(keyBytes);
     }
 
-    // 1. Extract Email (Username) from Token
     public String extractUsername(String token) {
         return extractClaim(token, Claims::getSubject);
     }
 
-    // 2. Extract Expiration Date
     public Date extractExpiration(String token) {
         return extractClaim(token, Claims::getExpiration);
+    }
+
+    public Long extractUserId(String token) {
+        final Claims claims = extractAllClaims(token);
+        return claims.get("userId", Long.class); 
+    }
+
+    // 🟢 NEW: Extract Faculty ID from Token
+    public Long extractFacultyId(String token) {
+        final Claims claims = extractAllClaims(token);
+        return claims.get("facultyId", Long.class); 
+    }
+
+    // 🟢 NEW: Extract Student ID from Token
+    public Long extractStudentId(String token) {
+        final Claims claims = extractAllClaims(token);
+        return claims.get("studentId", Long.class); 
+    }
+
+    public String extractRole(String token) {
+        final Claims claims = extractAllClaims(token);
+        return claims.get("role", String.class);
     }
 
     public <T> T extractClaim(String token, Function<Claims, T> claimsResolver) {
@@ -56,10 +72,20 @@ public class JwtUtil {
         return extractExpiration(token).before(new Date());
     }
 
-    // 3. Generate Token (Called upon successful login)
-    public String generateToken(String email, String role) {
+    // 🟢 UPDATED: Generate Token now accepts facultyId and studentId
+    public String generateToken(String email, String role, Long userId, Long facultyId, Long studentId) {
         Map<String, Object> claims = new HashMap<>();
-        claims.put("role", role); // Store the role inside the token
+        claims.put("role", role); 
+        claims.put("userId", userId);
+        
+        // Only put them in the token if they actually exist!
+        if (facultyId != null) {
+            claims.put("facultyId", facultyId);
+        }
+        if (studentId != null) {
+            claims.put("studentId", studentId);
+        }
+        
         return createToken(claims, email);
     }
 
@@ -73,7 +99,6 @@ public class JwtUtil {
                 .compact();
     }
 
-    // 4. Validate Token (Called on every request)
     public Boolean validateToken(String token, UserDetails userDetails) {
         final String username = extractUsername(token);
         return (username.equals(userDetails.getUsername()) && !isTokenExpired(token));

@@ -40,6 +40,14 @@ public class StudentController {
         StudentResponseDTO response = studentService.registerStudent(studentDTO);
         return new ResponseEntity<>(response, HttpStatus.CREATED);
     }
+    
+ // 🟢 NEW: Get Student by User ID (Needed for Auth Service Token Generation)
+    @GetMapping("/user/{userId}")
+    public ResponseEntity<StudentResponseDTO> getByUserId(@PathVariable Long userId) {
+        return studentService.getStudentByUserId(userId)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
+    }
 
     @GetMapping("/{id}")
     public ResponseEntity<StudentResponseDTO> getById(@PathVariable Long id) {

@@ -24,6 +24,7 @@ public interface FacultyService {
 
     
     FacultyResponseDTO updateFaculty(Long facultyId, FacultyDTO dto);
+    Optional<FacultyResponseDTO> getFacultyByUserId(Long userId);
 
 
     String deleteFaculty(Long id);

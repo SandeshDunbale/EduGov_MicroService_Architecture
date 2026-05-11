@@ -32,7 +32,13 @@ public class StudentServiceImpl implements StudentService {
     private final ModelMapper mapper;
  //   private final NotificationClient notificationClient;
     
-
+ // 🟢 NEW: Implementation for fetching by User ID
+    @Override
+    public Optional<StudentResponseDTO> getStudentByUserId(Long userId) {
+        return studentRepo.findByUserId(userId)
+                .map(student -> mapper.map(student, StudentResponseDTO.class));
+    }
+    
     @Override
     public StudentResponseDTO registerStudent(StudentDTO dto) {
         log.info("SERVICE: Registering student profile for email: {}", dto.getEmail());

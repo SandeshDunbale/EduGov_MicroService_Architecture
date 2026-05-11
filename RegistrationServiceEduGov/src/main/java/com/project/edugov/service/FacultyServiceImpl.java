@@ -96,6 +96,16 @@ public class FacultyServiceImpl implements FacultyService {
             return convertToResponse(f, identityData);
         });
     }
+    
+    @Override
+    public Optional<FacultyResponseDTO> getFacultyByUserId(Long userId) {
+        
+        // 1. Ask the repository to find the Faculty row where user_id matches
+        Optional<Faculty> facultyOptional = facultyRepo.findByUserId(userId);
+        
+        // 2. If it finds one, use ModelMapper to convert it to a DTO and return it
+        return facultyOptional.map(faculty -> mapper.map(faculty, FacultyResponseDTO.class));
+    }
 //    @Override
 //    @Transactional
 //    public FacultyResponseDTO updateFaculty(Long id, FacultyDTO dto) {
