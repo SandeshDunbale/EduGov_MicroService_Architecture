@@ -14,4 +14,6 @@ public interface EnrollmentService {
 	EnrollmentResponseDTO updateEnrollmentStatus(Map<String, Object> data);
 
 	List<EnrollmentResponseDTO> getAllEnrollments();
+
+	void deleteEnrollment(Long enrollmentId, Long adminId);
 }
