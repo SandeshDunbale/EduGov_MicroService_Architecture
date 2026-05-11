@@ -35,13 +35,15 @@ public class CourseServiceImpl implements CourseService {
 	private final FacultyClient facultyClient;
 	private final ModelMapper modelMapper;
 	private final NotificationClient notificationClient;
-	
-	// 1. INJECT AUDIT LOGGER
+
+	// Audit Logger Injection
 	private final AsyncAuditLogger auditLogger;
 
+	// Entity to DTO mapping
 	private CourseDTO mapToCustomDto(Course c) {
 		CourseDTO dto = modelMapper.map(c, CourseDTO.class);
 
+		// Fetch Admin metadata
 		try {
 			UserFeignDTO admin = userClient.getUserById(c.getCreatedByAdminId());
 			if (admin != null) {
@@ -54,6 +56,7 @@ public class CourseServiceImpl implements CourseService {
 			dto.setAdminName("Information temporarily unavailable");
 		}
 
+		// Fetch Faculty metadata
 		try {
 			FacultyFeignDTO faculty = facultyClient.getFacultyById(c.getFacultyId());
 			if (faculty != null) {
@@ -67,164 +70,305 @@ public class CourseServiceImpl implements CourseService {
 			dto.setFacultyName("Information temporarily unavailable");
 		}
 
+		// Map Program details
 		if (c.getProgram() != null) {
 			dto.setProgramId(c.getProgram().getProgramId());
 			dto.setProgramTitle(c.getProgram().getTitle());
 			dto.setProgramStatus(c.getProgram().getStatus().toString());
 		}
+
 		return dto;
 	}
 
 	@Override
 	public CourseDTO createCourse(Course course) {
+		// Log entry point
 		log.info("[START PROCESS] [POST] Request to /courses/save");
+		log.info("[ACTION] Creating new course: '{}'", course.getTitle());
+
 		Long pId = (course.getProgram() != null) ? course.getProgram().getProgramId() : null;
 		Long fId = course.getFacultyId();
 		Long aId = course.getCreatedByAdminId();
 
+		// Validate mandatory fields
 		if (pId == null || fId == null || aId == null) {
-			throw new APIException(HttpStatus.BAD_REQUEST, "A valid Program, Faculty, and Admin reference are required.");
+			log.warn("[VALIDATION FAILED] Missing mandatory identifiers");
+			throw new APIException(HttpStatus.BAD_REQUEST,
+					"A valid Program, Faculty, and Admin reference are required to create a course.");
 		}
 
+		// Verify Admin permissions
 		UserFeignDTO admin = null;
 		try {
 			admin = userClient.getUserById(aId);
 		} catch (Exception e) {
 			Throwable root = e;
-			while (root.getCause() != null) root = root.getCause();
-			if (root.getMessage() != null && (root.getMessage().contains("404") || root.getMessage().contains("403"))) {
+			while (root.getCause() != null)
+				root = root.getCause();
+			String errorMsg = root.getMessage() != null ? root.getMessage() : "";
+
+			if (errorMsg.contains("404") || errorMsg.contains("403") || errorMsg.contains("NotFound")) {
+				log.warn("[AUTH FAILED] Admin ID {} verification failed", aId);
 				admin = null;
 			} else {
-				throw new APIException(HttpStatus.SERVICE_UNAVAILABLE, "System unable to verify credentials.");
+				log.error("[CRITICAL] Identity Service is currently unreachable");
+				throw new APIException(HttpStatus.SERVICE_UNAVAILABLE,
+						"The system is unable to verify administrator credentials. Please try again later.");
 			}
 		}
 
+		// Check Admin role
 		if (admin == null || !Role.UNIV_ADMIN.equals(admin.getRole())) {
-			throw new APIException(HttpStatus.FORBIDDEN, "Access Denied: Not authorized as Admin.");
+			log.warn("[AUTH FAILED] Access denied for User ID: {}", aId);
+			throw new APIException(HttpStatus.FORBIDDEN,
+					"Access Denied: The requesting user is not authorized as a University Administrator.");
 		}
 
-		Program program = programRepo.findById(pId).orElseThrow(() -> 
-			new ResourceNotFoundException("Program not found."));
+		// Validate Program existence
+		Program program = programRepo.findById(pId).orElseThrow(() -> {
+			log.warn("[DATA NOT FOUND] Linked Program ID {} missing", pId);
+			return new ResourceNotFoundException("The requested program could not be found in our records.");
+		});
 
+		// Check Program status
 		if (program.getStatus() != Status.ACTIVE) {
-			throw new APIException(HttpStatus.BAD_REQUEST, "Linked program is INACTIVE.");
+			log.warn("[VALIDATION FAILED] Linked Program ID {} is INACTIVE", pId);
+			throw new APIException(HttpStatus.BAD_REQUEST,
+					"Course cannot be created because the linked program is currently INACTIVE.");
 		}
 
+		// Verify Faculty existence
 		FacultyFeignDTO faculty = null;
 		try {
 			faculty = facultyClient.getFacultyById(fId);
 		} catch (Exception e) {
-			throw new APIException(HttpStatus.SERVICE_UNAVAILABLE, "Unable to verify Faculty.");
+			Throwable root = e;
+			while (root.getCause() != null)
+				root = root.getCause();
+			String errorMsg = root.getMessage() != null ? root.getMessage() : "";
+
+			if (errorMsg.contains("404") || errorMsg.contains("NotFound")) {
+				log.warn("[DATA NOT FOUND] Faculty ID {} not found", fId);
+				faculty = null;
+			} else {
+				log.error("[CRITICAL] Registration Service is currently unreachable");
+				throw new APIException(HttpStatus.SERVICE_UNAVAILABLE,
+						"Registration Service is unreachable. Unable to verify the assigned Faculty member.");
+			}
 		}
 
+		// Validate Faculty record
 		if (faculty == null) {
-			throw new ResourceNotFoundException("Faculty record missing.");
+			log.warn("[VALIDATION FAILED] Assigned Faculty ID {} record missing", fId);
+			throw new ResourceNotFoundException("The assigned Faculty member record could not be found.");
 		}
 
+		// Ensure unique title
 		if (courseRepo.existsByTitleIgnoreCase(course.getTitle())) {
-			throw new APIException(HttpStatus.BAD_REQUEST, "Course title already exists.");
+			log.warn("[CONFLICT] Course title '{}' already exists", course.getTitle());
+			throw new APIException(HttpStatus.BAD_REQUEST, "The course title provided already exists in the system.");
 		}
 
+		// Persistence logic
 		course.setProgram(program);
 		Course savedCourse = courseRepo.save(course);
-		
-		// 2. FIRE AUDIT LOG
+		log.info("[DATABASE SUCCESS] Course persisted ID: {}", savedCourse.getCourseId());
+
+		// AUDIT LOG: Create
 		auditLogger.fireAndForgetLog(aId, "CREATE_COURSE", "Course Title: " + savedCourse.getTitle());
 
+		// Notify assigned Faculty
 		try {
 			notificationClient.sendNotification(faculty.getFacultyId(), savedCourse.getCourseId(),
-					"New Course Assignment: '" + savedCourse.getTitle() + "'", "COURSE_ASSIGNMENT", faculty.getEmail());
+					"New Course Assignment: University Admin has assigned the course '" + savedCourse.getTitle()
+							+ "' to you.",
+					"COURSE_ASSIGNMENT", faculty.getEmail());
+			log.info("[NOTIFICATION] Creation alert sent to Faculty ID: {}", fId);
 		} catch (Exception e) {
 			log.error("[SYSTEM] Failed to notify Faculty ID: {}", fId);
 		}
 
+		// Return created record
+		log.info("[SUCCESS] Course creation complete");
 		return mapToCustomDto(savedCourse);
 	}
 
 	@Override
 	public CourseDTO updateCourse(Long id, Course details) {
+		// Log update attempt
 		log.info("[START PROCESS] [PATCH] Request to /courses/update/{}", id);
-		Course existing = courseRepo.findById(id).orElseThrow(() -> 
-			new ResourceNotFoundException("Course not found."));
+		Course existing = courseRepo.findById(id).orElseThrow(() -> {
+			log.warn("[DATA NOT FOUND] Update target missing");
+			return new ResourceNotFoundException("Cannot update: The requested course record was not found.");
+		});
 
 		Long oldFacultyId = existing.getFacultyId();
 		boolean isChanged = false;
 		boolean facultyChanged = false;
 
+		// Modify course title
 		if (details.getTitle() != null && !details.getTitle().equalsIgnoreCase(existing.getTitle())) {
 			if (courseRepo.existsByTitleIgnoreCase(details.getTitle())) {
-				throw new APIException(HttpStatus.BAD_REQUEST, "Title already in use.");
+				log.warn("[CONFLICT] Duplicate title during update");
+				throw new APIException(HttpStatus.BAD_REQUEST,
+						"The updated course title is already in use by another record.");
 			}
 			existing.setTitle(details.getTitle());
 			isChanged = true;
 		}
 
+		// Modify description
 		if (details.getDescription() != null && !details.getDescription().equals(existing.getDescription())) {
 			existing.setDescription(details.getDescription());
 			isChanged = true;
 		}
 
+		// Handle Faculty reassignment
 		if (details.getFacultyId() != null && !details.getFacultyId().equals(existing.getFacultyId())) {
+			try {
+				if (facultyClient.getFacultyById(details.getFacultyId()) == null) {
+					throw new ResourceNotFoundException("The newly assigned Faculty member does not exist.");
+				}
+			} catch (Exception e) {
+				Throwable root = e;
+				while (root.getCause() != null)
+					root = root.getCause();
+				if (root.getMessage().contains("404"))
+					throw new ResourceNotFoundException("The assigned Faculty member record could not be found.");
+				log.error("[CRITICAL] Registration Service connection failed");
+				throw new APIException(HttpStatus.SERVICE_UNAVAILABLE,
+						"Registration Service is unreachable. Unable to reassign faculty.");
+			}
 			existing.setFacultyId(details.getFacultyId());
 			isChanged = true;
 			facultyChanged = true;
 		}
 
+		// Modify lifecycle status
 		if (details.getStatus() != null && !details.getStatus().equals(existing.getStatus())) {
 			existing.setStatus(details.getStatus());
 			isChanged = true;
 		}
 
+		// Prevent empty updates
 		if (!isChanged) {
-			throw new APIException(HttpStatus.BAD_REQUEST, "No changes detected.");
+			log.warn("[VALIDATION FAILED] No changes detected");
+			throw new APIException(HttpStatus.BAD_REQUEST,
+					"No changes detected. The course record is already up to date.");
 		}
 
+		// Commit updates
 		Course saved = courseRepo.save(existing);
-		
-		// 3. FIRE AUDIT LOG (Fallback to creator's ID since adminId isn't passed here)
+		log.info("[DATABASE SUCCESS] Course update complete ID: {}", saved.getCourseId());
+
+		// AUDIT LOG: Update
 		auditLogger.fireAndForgetLog(saved.getCreatedByAdminId(), "UPDATE_COURSE", "Course ID: " + id);
 
+		// Process Update Notifications
 		try {
 			if (facultyChanged) {
+				// Notify Removed Faculty
 				FacultyFeignDTO oldFac = facultyClient.getFacultyById(oldFacultyId);
 				notificationClient.sendNotification(oldFacultyId, saved.getCourseId(),
-						"Course Removed: '" + saved.getTitle() + "'.", "COURSE_REASSIGNMENT", oldFac.getEmail());
+						"Course Assignment Update: You are no longer assigned to the course '" + saved.getTitle()
+								+ "'.",
+						"COURSE_REASSIGNMENT", oldFac.getEmail());
 
+				// Notify New Faculty
 				FacultyFeignDTO newFac = facultyClient.getFacultyById(saved.getFacultyId());
 				notificationClient.sendNotification(saved.getFacultyId(), saved.getCourseId(),
-						"New Assignment: '" + saved.getTitle() + "'.", "COURSE_ASSIGNMENT", newFac.getEmail());
+						"New Course Assignment: University Admin has assigned the course '" + saved.getTitle()
+								+ "' to you.",
+						"COURSE_ASSIGNMENT", newFac.getEmail());
+
+				log.info("[NOTIFICATION] Reassignment alerts sent to old and new faculty");
+			} else {
+				// Notify existing Faculty
+				FacultyFeignDTO currentFac = facultyClient.getFacultyById(saved.getFacultyId());
+				notificationClient.sendNotification(saved.getFacultyId(), saved.getCourseId(),
+						"Course Update: The details for your assigned course '" + saved.getTitle()
+								+ "' have been updated by the Admin.",
+						"COURSE_UPDATE", currentFac.getEmail());
+
+				log.info("[NOTIFICATION] Detail update alert sent to current faculty");
 			}
 		} catch (Exception e) {
-			log.error("[SYSTEM] Notification failed during course update");
+			log.error("[SYSTEM] Notification failed during course update for Course ID: {}", id);
 		}
 
+		// Return updated DTO
 		return mapToCustomDto(saved);
 	}
 
 	@Override
 	public List<CourseDTO> getCoursesByFacultyId(Long facultyId) {
+		log.info("[START PROCESS] [GET] Request to /courses/faculty/{}", facultyId);
+		try {
+			if (facultyClient.getFacultyById(facultyId) == null) {
+				log.warn("[DATA NOT FOUND] Faculty ID {} missing", facultyId);
+				throw new ResourceNotFoundException("The requested Faculty member could not be found.");
+			}
+		} catch (Exception e) {
+			Throwable root = e;
+			while (root.getCause() != null)
+				root = root.getCause();
+			if (root.getMessage().contains("404") || root.getMessage().contains("NotFound")) {
+				throw new ResourceNotFoundException("Faculty member record not found.");
+			}
+			log.error("[CRITICAL] Registration Service unreachable");
+			throw new APIException(HttpStatus.SERVICE_UNAVAILABLE, "Registration Service is currently unreachable.");
+		}
+
 		List<Course> courses = courseRepo.findByFacultyId(facultyId);
-		if (courses.isEmpty()) throw new ResourceNotFoundException("No courses found.");
+		if (courses.isEmpty()) {
+			log.warn("[DATA NOT FOUND] No courses for Faculty ID: {}", facultyId);
+			throw new ResourceNotFoundException("No courses are currently assigned to this Faculty member.");
+		}
+
+		log.info("[SUCCESS] Courses retrieved for faculty");
 		return courses.stream().map(this::mapToCustomDto).toList();
 	}
 
 	@Override
 	public List<CourseDTO> getCoursesByProgramId(Long programId) {
+		log.info("[START PROCESS] [GET] Request to /courses/program/{}", programId);
+		if (!programRepo.existsById(programId)) {
+			log.warn("[DATA NOT FOUND] Program ID {} missing", programId);
+			throw new ResourceNotFoundException("The requested program record could not be found.");
+		}
+
 		List<Course> courses = courseRepo.findByProgram_ProgramId(programId);
-		if (courses.isEmpty()) throw new ResourceNotFoundException("No courses found.");
+		if (courses.isEmpty()) {
+			log.warn("[DATA NOT FOUND] No courses found for Program ID: {}", programId);
+			throw new ResourceNotFoundException("No courses are currently registered under this program.");
+		}
+
+		log.info("[SUCCESS] Courses retrieved for program");
 		return courses.stream().map(this::mapToCustomDto).toList();
 	}
 
 	@Override
 	public CourseDTO getCourseById(Long courseId) {
-		Course course = courseRepo.findById(courseId).orElseThrow(() -> new ResourceNotFoundException("Course missing"));
+		log.info("[START PROCESS] [GET] Request to /courses/{}", courseId);
+		Course course = courseRepo.findById(courseId).orElseThrow(() -> {
+			log.warn("[DATA NOT FOUND] Course ID {} record missing", courseId);
+			return new ResourceNotFoundException("The requested course could not be found in our records.");
+		});
+
+		log.info("[SUCCESS] Record retrieved");
 		return mapToCustomDto(course);
 	}
 
 	@Override
 	public List<CourseDTO> getAllCourses() {
+		log.info("[START PROCESS] [GET] Request to /courses/all");
 		List<Course> courses = courseRepo.findAll();
-		if (courses.isEmpty()) throw new ResourceNotFoundException("No courses registered.");
+		if (courses.isEmpty()) {
+			log.warn("[DATA NOT FOUND] Database table empty");
+			throw new ResourceNotFoundException("There are currently no academic courses registered in the system.");
+		}
+
+		log.info("[SUCCESS] All courses retrieved");
 		return courses.stream().map(this::mapToCustomDto).toList();
 	}
 }

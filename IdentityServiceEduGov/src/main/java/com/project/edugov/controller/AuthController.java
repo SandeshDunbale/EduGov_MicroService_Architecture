@@ -1,5 +1,16 @@
 package com.project.edugov.controller;
- 
+
+
+import org.modelmapper.ModelMapper;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+// 1. 🟢 Import your actual clients or services here!
+import com.project.edugov.clients.facultyClient;
+import com.project.edugov.clients.StudentClient;
 import com.project.edugov.dto.UserResponseDTO;
 import com.project.edugov.model.User;
 import com.project.edugov.security.JwtUtil;
@@ -11,6 +22,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
  
+
 @RestController
 @RequestMapping("/api/auth")
 public class AuthController {
@@ -19,12 +31,20 @@ public class AuthController {
     private final ModelMapper modelMapper;
     private final JwtUtil jwtUtil;
     private final BlackListedTokenService blackListService;
- 
-    public AuthController(UserService userService, ModelMapper modelMapper, JwtUtil jwtUtil, BlackListedTokenService blackListService) {
+    // 2. 🟢 Inject the clients/services
+    private final facultyClient facultyClient; 
+    private final StudentClient studentClient; 
+
+    public AuthController(UserService userService, ModelMapper modelMapper, JwtUtil jwtUtil, 
+                          BlackListedTokenService blackListService, 
+                          facultyClient facultyClient, StudentClient studentClient) { // 🟢 Add to constructor
+
         this.userService = userService;
         this.modelMapper = modelMapper;
         this.jwtUtil = jwtUtil;
         this.blackListService = blackListService;
+        this.facultyClient = facultyClient;
+        this.studentClient = studentClient;
     }
  
     public record LoginRequest(String email, String password) {}
@@ -35,8 +55,27 @@ public class AuthController {
     public ResponseEntity<JwtAuthResponse> login(@RequestBody LoginRequest request) {
         User authUser = userService.authenticate(request.email(), request.password());
         
-        // UPDATED: Now passing authUser.getId() as the third argument
-        String token = jwtUtil.generateToken(authUser.getEmail(), authUser.getRole().name(), authUser.getUserId());
+        Long facultyId = null;
+        Long studentId = null;
+        
+        // 3. 🟢 ACTUALLY FETCH THE IDs based on the user's role!
+        try {
+            if ("FACULTY".equals(authUser.getRole().name())) {
+                // Call your service/client to get the faculty details by User ID
+            	facultyId = facultyClient.getFacultyByUserId(authUser.getUserId()).getFacultyId();
+                
+            	// ... inside the try-catch block in your login method ...
+            } else if ("STUDENT".equals(authUser.getRole().name())) {
+                // 🟢 FIXED: Call getStudentByUserId instead of getStudentById
+                studentId = studentClient.getStudentByUserId(authUser.getUserId()).getStudentId();
+            }
+        } catch (Exception e) {
+            System.out.println("❌ FEIGN CLIENT CRASHED DURING LOGIN!");
+            e.printStackTrace(); // 👈 THIS IS THE MAGIC LINE
+        }
+        
+        // 4. Generate the token (now it will actually have the real numbers instead of null!)
+        String token = jwtUtil.generateToken(authUser.getEmail(), authUser.getRole().name(), authUser.getUserId(), facultyId, studentId);
         
         UserResponseDTO userDTO = modelMapper.map(authUser, UserResponseDTO.class);
         return ResponseEntity.ok(new JwtAuthResponse(token, userDTO));

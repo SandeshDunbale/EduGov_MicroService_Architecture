@@ -2,9 +2,11 @@ package com.project.edugov.service;
 
 import java.util.List;
 import java.util.Optional;
+
 import org.modelmapper.ModelMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
 import com.project.edugov.client.IdentityClient;
 import com.project.edugov.dto.FacultyDTO;
 import com.project.edugov.dto.FacultyResponseDTO;
@@ -13,6 +15,7 @@ import com.project.edugov.dto.UserResponseDTO;
 import com.project.edugov.model.Faculty;
 import com.project.edugov.model.Status;
 import com.project.edugov.repository.FacultyRepository;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -85,6 +88,32 @@ public class FacultyServiceImpl implements FacultyService {
             return convertToResponse(f, identityData);
         });
     }
+
+    
+    @Override
+    public Optional<FacultyResponseDTO> getFacultyByUserId(Long userId) {
+        
+        // 1. Ask the repository to find the Faculty row where user_id matches
+        Optional<Faculty> facultyOptional = facultyRepo.findByUserId(userId);
+        
+        // 2. If it finds one, use ModelMapper to convert it to a DTO and return it
+        return facultyOptional.map(faculty -> mapper.map(faculty, FacultyResponseDTO.class));
+    }
+//    @Override
+//    @Transactional
+//    public FacultyResponseDTO updateFaculty(Long id, FacultyDTO dto) {
+//        Faculty faculty = facultyRepo.findById(id)
+//                .orElseThrow(() -> new RuntimeException("Faculty not found"));
+//        
+//        faculty.setName(dto.getName());
+//        faculty.setPhone(dto.getPhone());
+//        faculty.setDepartment(dto.getDepartment());
+//        faculty.setDob(dto.getDob());
+//        
+//        Faculty updated = facultyRepo.save(faculty);
+//        // Fixed: You were passing 'saved' and 'iamUser' which didn't exist here
+//        return convertToResponse(updated, null); 
+//    }
 
     @Override
     @Transactional

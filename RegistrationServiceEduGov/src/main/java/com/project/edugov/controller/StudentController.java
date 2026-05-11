@@ -1,6 +1,5 @@
 package com.project.edugov.controller;
 
-import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -33,12 +32,20 @@ import lombok.extern.slf4j.Slf4j;
 public class StudentController {
 
     private final StudentService studentService;
-
+    
     @PostMapping("/register")
     public ResponseEntity<StudentResponseDTO> register(@Valid @RequestBody StudentDTO studentDTO) {
         log.info("REST: Registering new student: {}", studentDTO.getEmail());
         StudentResponseDTO response = studentService.registerStudent(studentDTO);
         return new ResponseEntity<>(response, HttpStatus.CREATED);
+    }
+    
+    // 🟢 METHOD 1: Path changed slightly to avoid the "Ambiguous mapping" crash
+    @GetMapping("/user/profile/{userId}")
+    public ResponseEntity<StudentResponseDTO> getByUserId(@PathVariable Long userId) {
+        return studentService.getStudentByUserId(userId)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
     }
 
     @GetMapping("/{id}")
@@ -58,7 +65,7 @@ public class StudentController {
         return ResponseEntity.ok(studentService.updateStudent(id, dto));
     }
 
-    @PatchMapping("/{id}/approve") // Ensure this is lowercase
+    @PatchMapping("/{id}/approve")
     public ResponseEntity<StudentResponseDTO> approveStudent(@PathVariable Long id) {
         return ResponseEntity.ok(studentService.approveStudent(id));
     }
@@ -74,16 +81,24 @@ public class StudentController {
         String message = studentService.deleteStudent(id);
         
         Map<String, String> response = new HashMap<>();
-        response.put("message", "Faculty with ID " + id + " has been successfully deleted.");
+        // 🟢 FIXED: Now says "Student" instead of "Faculty"
+        response.put("message", "Student with ID " + id + " has been successfully deleted.");
         response.put("status", "SUCCESS");
         return ResponseEntity.ok(response);
     }
     
-    //Module 6 requirements
- // Add this to StudentController.java
+    // Module 6 requirements
     @GetMapping("/all")
     public ResponseEntity<List<StudentResponseDTO>> getAllStudents() {
         log.info("API Hit: GET /students/all | Fetching all students for compliance scan");
         return ResponseEntity.ok(studentService.getAllStudents());
+    }
+    
+    // 🟢 METHOD 2: Kept exactly as your Feign Client expects it
+    @GetMapping("/user/{userId}")
+    public ResponseEntity<StudentResponseDTO> getStudentByUserId(@PathVariable Long userId) {
+        return studentService.getStudentByUserId(userId)
+                .map(ResponseEntity::ok)
+                .orElseGet(() -> ResponseEntity.notFound().build()); 
     }
 }

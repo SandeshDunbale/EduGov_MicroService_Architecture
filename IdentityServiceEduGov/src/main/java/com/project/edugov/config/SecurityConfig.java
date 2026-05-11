@@ -45,7 +45,20 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers(org.springframework.http.HttpMethod.OPTIONS, "/**").permitAll()
                 .requestMatchers("/api/auth/**", "/api/users/recoverEmail", "/api/identity/register").permitAll()
+
                 .requestMatchers("/api/audit/internal/log").permitAll()
+
+
+                // 2. INTERNAL USER FETCHING (Order matters!)
+                // Match specific sub-paths FIRST
+                .requestMatchers("/api/users/role/**").hasAnyAuthority("UNIV_ADMIN", "ROLE_UNIV_ADMIN", "PROG_MANAGER", "ROLE_PROG_MANAGER")
+                
+                // Match general user paths SECOND   
+                //added extra prog_manger for mod 4
+                .requestMatchers("/api/users/**").hasAnyAuthority("UNIV_ADMIN", "ROLE_UNIV_ADMIN", "FACULTY", "ROLE_FACULTY", "STUDENT", "ROLE_STUDENT","PROG_MANAGER","ROLE_PROG_MANAGER")
+
+                // 3. SECURE EVERYTHING ELSE
+
                 .anyRequest().authenticated()
             )
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))

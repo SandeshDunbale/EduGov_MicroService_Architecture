@@ -31,8 +31,17 @@ public class StudentServiceImpl implements StudentService {
     private final IdentityClient identityClient; 
     private final ModelMapper mapper;
     
+
     // 1. INJECT THE LOGGER
     private final AsyncAuditLogger auditLogger;
+
+ // 🟢 NEW: Implementation for fetching by User ID
+    @Override
+    public Optional<StudentResponseDTO> getStudentByUserId(Long userId) {
+        return studentRepo.findByUserId(userId)
+                .map(student -> mapper.map(student, StudentResponseDTO.class));
+    }
+    
 
     @Override
     public StudentResponseDTO registerStudent(StudentDTO dto) {
