@@ -55,14 +55,28 @@ public class StudentServiceImpl implements StudentService {
        
        // 2. Call Identity Service to create the user credentials
        UserResponseDTO iamUser = identityClient.registerUser(iamRequest);
+       
+       if (iamUser == null || iamUser.getUserId() == null) {
+           log.error("Identity Service failed to provide a User ID");
+           throw new RuntimeException("Identity creation failed. Student cannot be registered.");
+       }
 
        // 3. Map DTO to local Student entity and link the User ID
        Student student = mapper.map(dto, Student.class);
+//       student.setAddress(dto.getAddress());
+//       student.setUserId(iamUser.getUserId());
+//       student.setStatus(Status.PENDING);
+       
+       student.setName(dto.getName()); 
+       student.setPhone(dto.getPhone()); // Ensure DTO has getPhone()
+       student.setDob(dto.getDob());
+       student.setAddress(dto.getAddress());
+       student.setEmail(dto.getEmail());
        student.setUserId(iamUser.getUserId());
        student.setStatus(Status.PENDING);
-       
+        
        // 4. Save the student to your local database
-       Student savedStudent = studentRepo.save(student);
+       Student savedStudent = studentRepo.saveAndFlush(student);
 
        // 5. Send Welcome Notification / Email
        try {
@@ -80,6 +94,8 @@ public class StudentServiceImpl implements StudentService {
            log.error("Failed to send welcome email: {}", e.getMessage());
        }
 
+       
+       log.info("Student successfully committed to DB with UserID: {}", iamUser.getUserId());
        // 6. Return the combined data
        return convertToResponseDTO(savedStudent, iamUser);
    }
@@ -275,15 +291,37 @@ public class StudentServiceImpl implements StudentService {
     
     
 
-
+//
+//    private StudentResponseDTO convertToResponseDTO(Student student, UserResponseDTO iamUser) {
+//        StudentResponseDTO result = mapper.map(student, StudentResponseDTO.class);
+//        if (iamUser != null) {
+//            result.setEmail(iamUser.getEmail());
+//        }
+//        return result;
+//    }
     private StudentResponseDTO convertToResponseDTO(Student student, UserResponseDTO iamUser) {
-        StudentResponseDTO result = mapper.map(student, StudentResponseDTO.class);
-        if (iamUser != null) {
+        if (student == null) return null;
+
+        StudentResponseDTO result = new StudentResponseDTO();
+        
+        // Explicitly set every field
+        result.setStudentId(student.getStudentId());
+        result.setUserId(student.getUserId());
+        result.setName(student.getName());
+        result.setPhone(student.getPhone());
+        result.setDob(student.getDob());
+        result.setAddress(student.getAddress());
+        result.setStatus(student.getStatus());
+
+        // Fix the Email: Use IAM email if available, otherwise use local student email
+        if (iamUser != null && iamUser.getEmail() != null) {
             result.setEmail(iamUser.getEmail());
+        } else {
+            result.setEmail(student.getEmail());
         }
+        
         return result;
     }
-
     //Module 6 requirements
     @Override
     public List<StudentResponseDTO> getAllStudents() {

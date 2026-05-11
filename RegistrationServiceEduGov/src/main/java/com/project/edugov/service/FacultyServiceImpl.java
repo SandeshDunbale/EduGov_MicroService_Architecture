@@ -47,6 +47,7 @@ public class FacultyServiceImpl implements FacultyService {
                 "FACULTY", 
                 dto.getPhone(),
                 dto.getDob()
+               
         );
         
         // 1. Register in Identity Service
@@ -54,8 +55,18 @@ public class FacultyServiceImpl implements FacultyService {
 
         // 2. Persist Local Profile
         Faculty faculty = mapper.map(dto, Faculty.class);
-        faculty.setUserId(iamUser.getUserId()); 
+//        faculty.setUserId(iamUser.getUserId()); 
+//        faculty.setStatus(Status.PENDING);
+        
+        
+        faculty.setName(dto.getName()); 
+      faculty.setPhone(dto.getPhone()); // Ensure DTO has getPhone()
+        faculty.setDob(dto.getDob());
+        faculty.setAddress(dto.getAddress());
+        faculty.setEmail(dto.getEmail());
+        faculty.setUserId(iamUser.getUserId());
         faculty.setStatus(Status.PENDING);
+         
         Faculty saved = facultyRepo.save(faculty);
 
         // 3. Send Welcome Notification
@@ -164,11 +175,11 @@ public class FacultyServiceImpl implements FacultyService {
                 .orElseThrow(() -> new RuntimeException("Faculty not found with ID: " + id));
         
         // 2. Update the local business fields
-        faculty.setName(dto.getName());
+       faculty.setName(dto.getName());
         faculty.setPhone(dto.getPhone());
         faculty.setDepartment(dto.getDepartment());
-        faculty.setDob(dto.getDob());
-     
+       faculty.setDob(dto.getDob());
+    
         // 3. Save the changes to the Faculty database
         Faculty updatedFaculty = facultyRepo.save(faculty);
 
@@ -221,7 +232,18 @@ public class FacultyServiceImpl implements FacultyService {
         FacultyResponseDTO resp = mapper.map(faculty, FacultyResponseDTO.class);
         
         
+       
+        
+        
+        
+        resp.setFacultyId(faculty.getFacultyId());
+        resp.setUserId(faculty.getUserId());
+        resp.setName(faculty.getName());
         resp.setPhone(faculty.getPhone());
+        resp.setDob(faculty.getDob());
+        resp.setAddress(faculty.getAddress());
+        resp.setStatus(faculty.getStatus());
+
         
         if (identityData != null) {
             resp.setEmail(identityData.getEmail());

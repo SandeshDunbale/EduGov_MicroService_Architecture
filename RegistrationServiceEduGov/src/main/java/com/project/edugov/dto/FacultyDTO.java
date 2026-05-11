@@ -10,5 +10,6 @@ public class FacultyDTO {
     private String password;  // For Identity Service
     private String phone;
     private LocalDate dob;
+    private String address;
     private String department;
 }

@@ -115,7 +115,7 @@ public class UserServiceImpl implements UserService {
         user.setRole(Role.valueOf(request.role().toUpperCase()));
         user.setStatus(Status.ACTIVE); // Or Status.PENDING if you want admin approval first
 
-        return userRepository.save(user);
+        return userRepository.saveAndFlush(user);
     }
     
     

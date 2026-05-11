@@ -7,11 +7,12 @@ import lombok.Data;
 @Data
 public class FacultyResponseDTO {
     private Long facultyId;
-    private String userId;
+    private Long userId;
     private String name;
     private String email; 
     private String phone;
     private LocalDate dob;
+    private String address;
     private String department;
     private Status status;
 }
