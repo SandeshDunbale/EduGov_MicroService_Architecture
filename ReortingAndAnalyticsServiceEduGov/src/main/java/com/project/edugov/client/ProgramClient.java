@@ -8,8 +8,9 @@ import org.springframework.web.bind.annotation.PathVariable;
 @FeignClient(name = "ACADEMICPROGRAMSERVICEEDUGOV")
 public interface ProgramClient {
 
-    @GetMapping("/api/programs/count")
+    @GetMapping("/programs/count")
     long getTotalPrograms();
+  
 
     @GetMapping("/api/programs/count/status/{status}")
     long getProgramCountByStatus(@PathVariable("status") String status);

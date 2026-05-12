@@ -20,6 +20,9 @@ import java.util.List;
 public class DocumentServiceImpl implements DocumentService {
 
     private final DocumentRepository docRepo;
+    
+    // 1. INJECT THE LOGGER
+    private final AsyncAuditLogger auditLogger; 
 
     @Value("${file.upload-dir}")
     private String uploadDir;
@@ -52,7 +55,10 @@ public class DocumentServiceImpl implements DocumentService {
 
         Document savedDoc = docRepo.save(doc);
 
-        // Convert Entity to DTO to fix Controller error
+        // 2. FIRE THE AUDIT LOG (Background Thread)
+        // We use the userId because the Student/Faculty performed this action.
+        auditLogger.fireAndForgetLog(userId, "UPLOAD_DOCUMENT", "DocType: " + docType + ", DocNum: " + docNum);
+
         return DocumentResponse.builder()
                 .documentId(savedDoc.getDocumentId())
                 .docType(savedDoc.getDocType())
@@ -76,7 +82,10 @@ public class DocumentServiceImpl implements DocumentService {
 
         Document updatedDoc = docRepo.save(doc);
 
-        // Convert Entity to DTO to fix Controller error
+        // 3. FIRE THE AUDIT LOG (Background Thread)
+        // Notice we use adminId here! The Admin performed this action, not the document owner.
+        auditLogger.fireAndForgetLog(adminId, "VERIFY_DOCUMENT", "Document ID: " + docId + " set to " + status);
+
         return DocumentResponse.builder()
                 .documentId(updatedDoc.getDocumentId())
                 .docType(updatedDoc.getDocType())

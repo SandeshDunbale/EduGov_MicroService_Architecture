@@ -21,7 +21,7 @@ public interface UserService {
     /**
      * Updates the password for a specific user.
      */
-    void updatePassword(String email, String newRawPassword);
+    void updatePassword(String email, String phone, java.time.LocalDate dob, String newRawPassword);
 
     /**
      * Retrieves a list of users by their role.

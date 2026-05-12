@@ -6,7 +6,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 
 import com.project.edugov.dto.StudentFeignDTO;
 
-//Interface for communication with Student service
+//Interface for communication with Registration (Student) service
 
 @FeignClient(name = "REGISTRATIONSERVICEEDUGOV", contextId = "studentClient")
 public interface StudentClient {

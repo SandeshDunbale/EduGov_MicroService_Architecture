@@ -6,6 +6,7 @@ import com.project.edugov.dto.ProgramDTO;
 import com.project.edugov.model.Program;
 
 public interface ProgramService {
+	long getTotalCount();
 	ProgramDTO createProgram(Program program, Long adminId);
 
 	List<ProgramDTO> searchPrograms(String title);
@@ -18,5 +19,5 @@ public interface ProgramService {
 
 	List<ProgramDTO> getProgramsByStatus(String status);
 	
-	
+
 }

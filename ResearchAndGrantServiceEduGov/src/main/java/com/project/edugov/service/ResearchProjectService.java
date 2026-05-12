@@ -20,4 +20,5 @@ public interface ResearchProjectService {
 	ResearchProject updateProjectStatus(Long projectId, ProjectStatus newStatus);
 
 	ProjectUpdateResponseDTO updateProject(Long projectId, ResearchProject projectDetails);
+	long getTotalCount();
 }

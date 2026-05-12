@@ -5,6 +5,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
 import org.springframework.cloud.openfeign.EnableFeignClients;
 import org.springframework.context.annotation.Bean;
+import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
@@ -15,6 +16,7 @@ import jakarta.servlet.http.HttpServletRequest;
 @SpringBootApplication
 @EnableFeignClients
 @EnableDiscoveryClient//optional
+@EnableAsync
 public class ResourceAndInfrastructureServiceApplication {
     public static void main(String[] args) {
         SpringApplication.run(ResourceAndInfrastructureServiceApplication.class, args);

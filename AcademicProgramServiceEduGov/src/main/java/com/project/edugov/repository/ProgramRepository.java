@@ -16,7 +16,8 @@ public interface ProgramRepository extends JpaRepository<Program, Long> {
 
 	// Search programs by title
 	List<Program> findByTitleContainingIgnoreCase(String title);
-	
-	//Module 6 requirement
+
+	// Module 6 requirement
 	List<Program> findByStatus(Status status);
+	long countByStatus(Status status);
 }

@@ -17,6 +17,9 @@ import com.project.edugov.model.ResearchProject;
 import com.project.edugov.repository.GrantApplicationRepository;
 import com.project.edugov.repository.ResearchProjectRepository;
 
+// ADDED: Resilience4j Import
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -27,74 +30,95 @@ public class ResearchProjectServiceImpl implements ResearchProjectService {
 
 	private final ResearchProjectRepository projectRepository; 
 	private final GrantApplicationRepository applicationRepository;
-	// DELETE THIS
-	// private final ModelMapperConfig modelMapper;
+
+	private final ModelMapper modelMapper;
+
 	
 
-	// REPLACE IT WITH THIS
-	private final ModelMapper modelMapper;
-	
-	// CHANGED: Injected the Feign Client instead of the Repository
 	private final FacultyClient facultyClient;
-	
+
+	// 1. INJECT AUDIT LOGGER
+	private final AsyncAuditLogger auditLogger;
+
 	@Override
 	@Transactional
+	@CircuitBreaker(name = "facultyServiceCb", fallbackMethod = "createProjectFallback")
 	public ResearchProjectDTO createProject(ResearchProject project, Long facultyId) {
 		log.info("Attempting to create a new project: '{}' for Faculty ID: {}", project.getTitle(), facultyId);
 
-		// CHANGED: SYNCHRONOUS NETWORK CALL via Feign
-		// If the user service throws a 404, OpenFeign handles it or you can catch it!
 		FacultyMinimalDTO faculty;
 		try {
 			faculty = facultyClient.getFacultyById(facultyId);
 		} catch (Exception e) {
+
 			log.error("Project creation failed: Faculty ID {} not found in User Service", facultyId);
+			// Throwing this exception triggers the Circuit Breaker
+
 			throw new ResourceNotFoundException("Faculty not found with ID: " + facultyId);
 		}
 
 		if (projectRepository.existsByTitleAndFacultyId(project.getTitle(), facultyId)) {
-			log.warn("Project creation blocked: Title '{}' already exists for Faculty ID {}", project.getTitle(), facultyId);
 			throw new RuntimeException("A project with this title already exists for this faculty.");
 		}
 
-		// CHANGED: We only store the ID now!
 		project.setFacultyId(facultyId);
 		project.setStatus(ProjectStatus.DRAFT);
 
 		ResearchProject savedProject = projectRepository.save(project);
-		log.info("Project successfully created with ID: {}", savedProject.getProjectId());
+		
+		// 2. FIRE AUDIT LOG
+		auditLogger.fireAndForgetLog(facultyId, "CREATE_PROJECT", "Project Title: " + savedProject.getTitle());
 
 		ResearchProjectDTO responseDTO = modelMapper.map(savedProject, ResearchProjectDTO.class);
-		responseDTO.setFaculty(faculty); // Attach the network-fetched data to the response
+		responseDTO.setFaculty(faculty); 
 		return responseDTO;
+	}
+
+	// ADDED: Fallback Method for createProject
+	public ResearchProjectDTO createProjectFallback(ResearchProject project, Long facultyId, Throwable throwable) {
+		log.error("Circuit Breaker Tripped! Faculty Service unavailable to verify Faculty {}. Fallback executing. Reason: {}", facultyId, throwable.getMessage());
+		
+		ResearchProjectDTO fallbackResponse = new ResearchProjectDTO();
+		fallbackResponse.setTitle(project.getTitle() + " (CREATION FAILED - SERVICE DOWN)");
+		// Returning an empty DTO to prevent server crash, though you could also throw a custom 503 Exception here.
+		return fallbackResponse;
 	}
 
 	@Override
 	public List<ResearchProjectDTO> getProjectsByFaculty(Long facultyId) {
-		log.debug("Fetching all projects for Faculty ID: {}", facultyId);
 		List<ResearchProject> projects = projectRepository.findByFacultyId(facultyId);
 
 		if (projects.isEmpty()) {
-			log.warn("No projects found in database for Faculty ID: {}", facultyId);
 			throw new RuntimeException("No projects found for Faculty ID: " + facultyId);
 		}
 
-		return projects.stream().map(project -> modelMapper.map(project, ResearchProjectDTO.class))
-				.collect(java.util.stream.Collectors.toList());
+		// 1. Fetch the Faculty details ONCE before the loop
+		FacultyMinimalDTO facultyProfile = null;
+		try {
+			facultyProfile = facultyClient.getFacultyById(facultyId);
+		} catch (Exception e) {
+			log.warn("Could not fetch Faculty details for ID: {}", facultyId);
+		}
+		
+		// We need a 'final' effectively variable to use inside the lambda stream
+		final FacultyMinimalDTO finalFaculty = facultyProfile;
+
+		// 2. Map the projects and attach the faculty profile to each one
+		return projects.stream().map(p -> {
+			ResearchProjectDTO dto = modelMapper.map(p, ResearchProjectDTO.class);
+			dto.setFaculty(finalFaculty); // Attach the fetched data!
+			return dto;
+		}).collect(java.util.stream.Collectors.toList());
 	}
 
 	@Override
 	public ResearchProjectDTO getProjectById(Long projectId) {
-		log.debug("Fetching details for Project ID: {}", projectId);
 		ResearchProject project = projectRepository.findById(projectId).orElseThrow(() -> {
-			log.error("Fetch failed: Project ID {} not found", projectId);
 			return new RuntimeException("Project not found with ID: " + projectId);
 		});
 
-		// 1. Keep your exact original mapping logic
 		ResearchProjectDTO responseDTO = modelMapper.map(project, ResearchProjectDTO.class);
 
-		// 2. ONLY ADD THIS TRY-CATCH BLOCK
 		try {
 			FacultyMinimalDTO faculty = facultyClient.getFacultyById(project.getFacultyId());
 			responseDTO.setFaculty(faculty);
@@ -102,13 +126,11 @@ public class ResearchProjectServiceImpl implements ResearchProjectService {
 			log.warn("Could not fetch Faculty details for ID: {}", project.getFacultyId());
 		}
 
-		// 3. Return the updated DTO
 		return responseDTO;
 	}
 
 	@Override
 	public List<ResearchProject> getProjectsByStatus(ProjectStatus status) {
-		log.debug("Fetching projects with status: {}", status);
 		return projectRepository.findByStatus(status);
 	}
 
@@ -118,55 +140,65 @@ public class ResearchProjectServiceImpl implements ResearchProjectService {
 		log.info("Updating status for Project ID: {} to {}", projectId, newStatus);
 
 		ResearchProject project = projectRepository.findById(projectId).orElseThrow(() -> {
-			log.error("Status update failed: Project ID {} not found", projectId);
 			return new RuntimeException("Project status not updated with ID: " + projectId);
 		});
 
 		project.setStatus(newStatus);
-		return projectRepository.save(project);
+		ResearchProject saved = projectRepository.save(project);
+		
+		// 3. FIRE AUDIT LOG (Fallback to faculty's ID since no user ID was provided in method parameters)
+		auditLogger.fireAndForgetLog(project.getFacultyId(), "UPDATE_PROJECT_STATUS", "Project ID: " + projectId + " changed to " + newStatus);
+		
+		return saved;
+	}
+	// ResearchProjectServiceImpl.java
+	@Override
+	public long getTotalCount() {
+	    log.info("Fetching total count of research projects");
+	    return projectRepository.count();
 	}
 
 	@Override
 	@Transactional
 	public ProjectUpdateResponseDTO updateProject(Long projectId, ResearchProject details) {
 		log.info("Processing update request for Project ID: {}", projectId);
-
+ 
 		ResearchProject existingProject = projectRepository.findById(projectId).orElseThrow(() -> {
 			log.error("Update failed: Project ID {} not found", projectId);
 			return new ResourceNotFoundException("No project found with ID: " + projectId);
 		});
-
+ 
 		applicationRepository.findByProject_ProjectId(projectId).ifPresent(app -> {
 			if (app.getStatus() == GrantApplicationStatus.APPROVED) {
 				log.warn("Update blocked: Project ID {} is already APPROVED for a grant", projectId);
 				throw new RuntimeException("Update forbidden: This project has been APPROVED for a grant and cannot be modified.");
 			}
 		});
-
+ 
 		log.debug("Updating project fields for Project ID: {}", projectId);
 		existingProject.setTitle(details.getTitle());
 		existingProject.setDescription(details.getDescription());
 		existingProject.setStartDate(details.getStartDate());
 		existingProject.setEndDate(details.getEndDate());
 		existingProject.setStatus(ProjectStatus.DRAFT);
-
-		// ... your existing code above stays exactly the same!
 		
-				ResearchProject updated = projectRepository.save(existingProject);
-				log.info("Project ID: {} updated successfully and set back to DRAFT", projectId);
-
-				// 1. Keep your exact original mapping logic
-				ProjectUpdateResponseDTO responseDTO = modelMapper.map(updated, ProjectUpdateResponseDTO.class);
-
-				// 2. ONLY ADD THIS TRY-CATCH BLOCK
-				try {
-					FacultyMinimalDTO faculty = facultyClient.getFacultyById(updated.getFacultyId());
-					responseDTO.setFaculty(faculty);
-				} catch (Exception e) {
-					log.warn("Could not fetch Faculty details for ID: {}", updated.getFacultyId());
-				}
-
-				// 3. Return the updated DTO
-				return responseDTO;
-			}
+		ResearchProject updated = projectRepository.save(existingProject);
+		log.info("Project ID: {} updated successfully and set back to DRAFT", projectId);
+ 
+		// 1. Keep your exact original mapping logic
+		ProjectUpdateResponseDTO responseDTO = modelMapper.map(updated, ProjectUpdateResponseDTO.class);
+ 
+		// 2. ONLY ADD THIS TRY-CATCH BLOCK
+		try {
+			FacultyMinimalDTO faculty = facultyClient.getFacultyById(updated.getFacultyId());
+			responseDTO.setFaculty(faculty);
+		} catch (Exception e) {
+			log.warn("Could not fetch Faculty details for ID: {}", updated.getFacultyId());
+		}
+     
+		// 3. Return the updated DTO
+		return responseDTO;
 	}
+ 
+ 
+}

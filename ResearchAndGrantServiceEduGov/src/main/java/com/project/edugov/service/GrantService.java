@@ -20,8 +20,10 @@ public interface GrantService {
 	List<GrantApplicationDTO> getApplicationHistoryByFaculty(Long facultyId);
 	
 	
+	
 	//Module 6 Requirement
 	List<GrantApplicationDTO> getGrantApplicationsByStatuses(List<String> statuses);
 	GrantApplicationDTO getGrantApplicationByProjectId(Long projectId);
 	List<GrantResponseDTO> getAllGrants();
+	long getTotalCount();
 }
