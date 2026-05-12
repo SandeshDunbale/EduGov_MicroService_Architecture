@@ -27,7 +27,7 @@ import com.project.edugov.repository.GrantApplicationRepository;
 import com.project.edugov.repository.GrantRepository;
 import com.project.edugov.repository.ResearchProjectRepository;
 
-// ADDED: Resilience4j Import
+// Resilience4j Import
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 
 import lombok.RequiredArgsConstructor;
@@ -45,12 +45,8 @@ public class GrantServiceImpl implements GrantService {
 	
 	private final UserClient userClient;
 	private final FacultyClient facultyClient;
-	
-	// 1. INJECT AUDIT LOGGER
 	private final AsyncAuditLogger auditLogger;
-
 	private final NotificationClient notificationClient;
-
 
 	@Override
 	@Transactional
@@ -85,11 +81,10 @@ public class GrantServiceImpl implements GrantService {
 			finalApp = applicationRepository.save(newDetails);
 		}
 
-
-		// 2. FIRE AUDIT LOG (Logged under Faculty ID)
+		// FIRE AUDIT LOG
 		auditLogger.fireAndForgetLog(facultyId, "APPLY_GRANT", "Project ID: " + projectId + ", Amount: $" + finalApp.getRequestedAmount());
 
-		// CHANGED: Network call to User Microservice to get all PMs
+		// Notify Program Managers via User Service
 		try {
 			List<UserExternalDTO> programManagers = userClient.getUsersByRole("PROG_MANAGER");
 			for (UserExternalDTO pm : programManagers) {
@@ -105,7 +100,6 @@ public class GrantServiceImpl implements GrantService {
 			log.warn("Could not fetch Program Managers from User Service for notifications.");
 		}
 
-
 		GrantApplicationDTO responseDTO = modelMapper.map(finalApp, GrantApplicationDTO.class);
 
 		try {
@@ -118,7 +112,6 @@ public class GrantServiceImpl implements GrantService {
 		return responseDTO;
 	}
 
-	// ADDED: Circuit Breaker Annotation
 	@Override
 	@Transactional
 	@CircuitBreaker(name = "userServiceCb", fallbackMethod = "approveGrantApplicationFallback")
@@ -129,13 +122,12 @@ public class GrantServiceImpl implements GrantService {
 			return new ResourceNotFoundException("Application not found with ID: " + applicationId);
 		});
  
-		// CHANGED: Network call to User Microservice to verify Manager
+		// Network call to User Microservice to verify Manager
 		UserExternalDTO programManager;
 		try {
 			programManager = userClient.getUserById(userId);
 		} catch (Exception e) {
-			log.error("The REAL reason the User Service failed: {}", e.getMessage());
-			// Throwing this exception is what trips the Circuit Breaker and triggers the fallback!
+			log.error("User Service failed: {}", e.getMessage());
 			throw new ResourceNotFoundException("Manager not found with ID: " + userId + " in User Service");
 		}
  
@@ -150,13 +142,15 @@ public class GrantServiceImpl implements GrantService {
 			log.warn("Could not fetch Faculty details for notifications.");
 		}
  
+		// ---> ADDED: Track who reviewed the application for the Dashboard <---
+		app.setReviewedByUserId(userId);
+ 
 		if (decision == GrantStatus.UNDER_REVIEW) {
 			app.setStatus(GrantApplicationStatus.UNDER_REVIEW);
 			project.setStatus(ProjectStatus.UNDER_REVIEW);
 			projectRepository.save(project);
 			applicationRepository.save(app);
 			
-			// FIX: Manually map fields since we are not creating a Grant record
 			GrantResponseDTO response = new GrantResponseDTO();
 			response.setProjectId(project.getProjectId());
 			response.setProjectTitle(project.getTitle());
@@ -175,11 +169,11 @@ public class GrantServiceImpl implements GrantService {
  
 			Grant grant = grantRepository.findByProject_ProjectId(project.getProjectId()).orElse(new Grant());
 			grant.setProject(project);
-			grant.setFacultyId(project.getFacultyId()); // CHANGED
+			grant.setFacultyId(project.getFacultyId());
 			grant.setAmount(app.getRequestedAmount());
 			grant.setDate(LocalDate.now());
 			grant.setStatus(GrantStatus.APPROVED);
-			grant.setApprovedByUserId(userId); // CHANGED
+			grant.setApprovedByUserId(userId); 
  
 			applicationRepository.save(app);
 			Grant savedGrant = grantRepository.save(grant);
@@ -193,7 +187,7 @@ public class GrantServiceImpl implements GrantService {
 			}
  
 			GrantResponseDTO response = modelMapper.map(savedGrant, GrantResponseDTO.class);
-			response.setApprovedByRole(programManager.getRole()); // Attach Role from Network call
+			response.setApprovedByRole(programManager.getRole());
 			return response;
 		}
  
@@ -211,14 +205,13 @@ public class GrantServiceImpl implements GrantService {
 				);
 			}
  
-			// FIX: Manually map fields since we are not creating a Grant record
 			GrantResponseDTO response = new GrantResponseDTO();
 			response.setProjectId(project.getProjectId());
 			response.setProjectTitle(project.getTitle());
 			response.setAmount(app.getRequestedAmount());
-			response.setDate(LocalDate.now()); // Date it was rejected
+			response.setDate(LocalDate.now());
 			response.setStatus(GrantStatus.REJECTED);
-			response.setApprovedByRole(programManager.getRole()); // Attach Role from Network call
+			response.setApprovedByRole(programManager.getRole());
 			
 			return response;
 		}
@@ -228,23 +221,16 @@ public class GrantServiceImpl implements GrantService {
 		}
 	}
  
-
-
-	// --- FALLBACK METHOD FOR APPROVE GRANT (FIXED) ---
+	// --- FALLBACK METHOD FOR APPROVE GRANT ---
 	public GrantResponseDTO approveGrantApplicationFallback(Long applicationId, Long userId, GrantStatus decision, Throwable throwable) {
-		log.error("Circuit Breaker Tripped! User Service unavailable to verify Manager {}. Fallback executing. Reason: {}", userId, throwable.getMessage());
+		log.error("Circuit Breaker Tripped! User Service unavailable. Fallback executing. Reason: {}", throwable.getMessage());
 		
 		GrantResponseDTO fallbackResponse = new GrantResponseDTO();
-		
-		// 1. Pass the Enum directly since the DTO expects GrantStatus
 		fallbackResponse.setStatus(decision); 
-		
-		// 2. Add a clear role indicator so your frontend/logs know the service was down
 		fallbackResponse.setApprovedByRole("SERVICE_UNAVAILABLE");
 		
 		return fallbackResponse;
 	}
-
 
 	@Override
 	public List<GrantApplicationDTO> getPendingApplications() {
@@ -297,8 +283,6 @@ public class GrantServiceImpl implements GrantService {
 				}).collect(Collectors.toList());
 	}
 	
-
-
 	@Override
 	public List<GrantApplicationDTO> getGrantApplicationsByStatuses(List<String> statuses) {
 		List<GrantApplicationStatus> enumStatuses = statuses.stream()
@@ -321,6 +305,30 @@ public class GrantServiceImpl implements GrantService {
 	public List<GrantResponseDTO> getAllGrants() {
 		return grantRepository.findAll().stream()
 				.map(grant -> modelMapper.map(grant, GrantResponseDTO.class))
+				.collect(Collectors.toList());
+	}
+
+	// ---> NEW: Method to support the Program Manager Dashboard <---
+	@Override
+	public List<GrantApplicationDTO> getManagerDecisionHistory(Long managerId) {
+		log.info("Fetching grant decision history for Manager ID: {}", managerId);
+		
+		List<GrantApplicationStatus> statuses = List.of(
+			GrantApplicationStatus.APPROVED, 
+			GrantApplicationStatus.REJECTED
+		);
+		
+		return applicationRepository.findByReviewedByUserIdAndStatusIn(managerId, statuses).stream()
+				.map(app -> {
+					GrantApplicationDTO dto = modelMapper.map(app, GrantApplicationDTO.class);
+					try {
+						FacultyMinimalDTO facultyProfile = facultyClient.getFacultyById(app.getFacultyId());
+						dto.setFaculty(facultyProfile);
+					} catch (Exception e) {
+						log.warn("Could not fetch Faculty details for ID: {} in manager history.", app.getFacultyId());
+					}
+					return dto;
+				})
 				.collect(Collectors.toList());
 	}
 }
