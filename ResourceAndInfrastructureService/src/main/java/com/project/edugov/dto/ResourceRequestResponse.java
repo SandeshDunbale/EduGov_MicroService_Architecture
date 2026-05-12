@@ -13,9 +13,12 @@ public class ResourceRequestResponse {
     private Long requestId;
     private Long requesterUserId;
     private Long resourceId;
+    
     private RequestItemType itemType; // Changed to your Enum
     private Integer quantity;
     private RequestStatus status;
     private Instant createdAt;
     String reason;
+    private String resourceType;  
+    private String programName;
 }

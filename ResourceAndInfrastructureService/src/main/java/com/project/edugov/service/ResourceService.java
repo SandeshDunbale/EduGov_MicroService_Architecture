@@ -1,7 +1,10 @@
 package com.project.edugov.service;
 
+import java.util.Collection;
 import java.util.List;
 
+import com.project.edugov.dto.ProgramDTO;
+import com.project.edugov.dto.ResourceResponse;
 import com.project.edugov.model.Resource;
 import com.project.edugov.model.ResourceStatus;
 import com.project.edugov.model.ResourceType;
@@ -25,4 +28,8 @@ public interface ResourceService {
     List<Resource> findAll();
 
     void delete(Long resourceId);
+
+	List<Resource> findByTypeAndProgram(Long programId, ResourceType type);
+	
+	List<ProgramDTO> getAllPrograms();
 }

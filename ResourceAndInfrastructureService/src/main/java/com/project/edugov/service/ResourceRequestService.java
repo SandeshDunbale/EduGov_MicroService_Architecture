@@ -34,9 +34,9 @@ public interface ResourceRequestService {
             String reasonOptional
     );
 
-    List<ResourceRequest> listByStatus(RequestStatus status);
+    List<Object> listByStatus(RequestStatus status);
 
-    List<ResourceRequest> listByRequester(Long requesterUserId);
+    List<Object> listByRequester(Long requesterUserId);
 
     ResourceRequest getById(Long requestId);
 }

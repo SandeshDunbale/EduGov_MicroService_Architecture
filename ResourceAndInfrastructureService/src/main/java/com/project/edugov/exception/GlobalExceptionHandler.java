@@ -37,12 +37,19 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(FeignException.NotFound.class)
     public ResponseEntity<Map<String, Object>> handleFeignNotFound(FeignException.NotFound ex) {
 
-        log.warn("404 - Downstream resource not found: {}", ex.getMessage());
+        log.warn("404 - Downstream NOT FOUND: {}", ex.getMessage());
 
-        return build(
-                HttpStatus.NOT_FOUND,
-                "Requested resource not found in downstream service"
-        );
+        String message = "Requested resource not found";
+
+        try {
+            String fullMsg = ex.getMessage();
+            String id = fullMsg.replaceAll("[^0-9]", ""); // extract numbers
+
+            message = "Program ID " + id + " not found";
+
+        } catch (Exception ignored) {}
+
+        return build(HttpStatus.NOT_FOUND, message);
     }
 
     // =========================================

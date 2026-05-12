@@ -40,21 +40,36 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
+            // 1. ADD THIS LINE: Enable CORS and link it to the source below
             .csrf(csrf -> csrf.disable())
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers(org.springframework.http.HttpMethod.OPTIONS, "/**").permitAll()
-                
-                // 1. PUBLIC ENDPOINTS
                 .requestMatchers("/api/auth/**", "/api/users/recoverEmail", "/api/identity/register").permitAll()
+
+                .requestMatchers("/api/audit/internal/log").permitAll()
+                .requestMatchers(
+                	    "/api/resources/by-type/**",
+                	    "/api/infrastructure/by-type/**",
+                	    "/api/resources/by-type-program",
+                	    "/api/infrastructure/by-type-program"
+
+                	).permitAll()
+
 
                 // 2. INTERNAL USER FETCHING (Order matters!)
                 // Match specific sub-paths FIRST
                 .requestMatchers("/api/users/role/**").hasAnyAuthority("UNIV_ADMIN", "ROLE_UNIV_ADMIN", "PROG_MANAGER", "ROLE_PROG_MANAGER")
                 
+
                 // Match general user paths SECOND
+
+                // Match general user paths SECOND   
+                //added extra prog_manger for mod 4
+
                 .requestMatchers("/api/users/**").hasAnyAuthority("UNIV_ADMIN", "ROLE_UNIV_ADMIN", "FACULTY", "ROLE_FACULTY", "STUDENT", "ROLE_STUDENT","PROG_MANAGER","ROLE_PROG_MANAGER")
 
                 // 3. SECURE EVERYTHING ELSE
+
                 .anyRequest().authenticated()
             )
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
@@ -62,4 +77,6 @@ public class SecurityConfig {
 
         return http.build();
     }
+
+    // 2. ADD THIS BEAN: This defines the actual CORS policy for Spring Security
 }
