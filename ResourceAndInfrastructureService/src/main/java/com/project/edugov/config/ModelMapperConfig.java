@@ -65,6 +65,7 @@ public class ModelMapperConfig {
 	                  // ✅ FIXED
 	                  .infrastructureType(infra != null ? infra.getType().name() : null)
 	                  .programName(programName)
+	                  .location(infra != null ? infra.getLocation() : null)
 
 	                  .build();
 	      });
