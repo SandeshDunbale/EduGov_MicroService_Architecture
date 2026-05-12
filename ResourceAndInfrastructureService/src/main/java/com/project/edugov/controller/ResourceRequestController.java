@@ -111,7 +111,7 @@ public class ResourceRequestController {
     // ✅ List by status
     // =================================================
     @GetMapping
-    public List<?> listByStatus(@RequestParam RequestStatus status) {
+    public List<Object> listByStatus(@RequestParam RequestStatus status) {
 
         return service.listByStatus(status); // ✅ already mapped
     }
@@ -120,7 +120,7 @@ public class ResourceRequestController {
     // ✅ List by requester
     // =================================================
     @GetMapping("/by-requester/{userId}")
-    public List<?> listByRequester(@PathVariable Long userId) {
+    public List<Object> listByRequester(@PathVariable Long userId) {
 
         // ✅ Already mapped in service → NO mapping here
         return service.listByRequester(userId);

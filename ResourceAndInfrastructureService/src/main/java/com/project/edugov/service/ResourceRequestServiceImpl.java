@@ -18,6 +18,7 @@ import com.project.edugov.feign.NotificationClient;
 import com.project.edugov.feign.ProgramClient;
 import com.project.edugov.feign.UserClient;
 import com.project.edugov.model.Infrastructure;
+import com.project.edugov.model.InfrastructureStatus;
 import com.project.edugov.model.RequestItemType;
 import com.project.edugov.model.RequestStatus;
 import com.project.edugov.model.Resource;
@@ -182,6 +183,12 @@ public class ResourceRequestServiceImpl implements ResourceRequestService {
 
         Infrastructure infra = infraRepo.findById(infraId)
                 .orElseThrow(() -> new EntityNotFoundException("Infrastructure not found: " + infraId));
+
+     // ✅ ADD THIS CHECK HERE
+        if (infra.getStatus() != InfrastructureStatus.AVAILABLE) {
+            throw new IllegalStateException("Infrastructure is not available.");
+        }
+
 
         ResourceRequest request = ResourceRequest.builder()
                 .requesterUserId(requesterUserId)
