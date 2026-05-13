@@ -2,17 +2,18 @@ package com.project.edugov.client;
 
 import com.project.edugov.dto.RemoteUserDto;
 import org.springframework.cloud.openfeign.FeignClient;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import java.util.List; // Changed to List for better compatibility with Stream logic
+import org.springframework.web.bind.annotation.*;
 
-@FeignClient(name = "IdentityServiceEduGov", path = "/api/users")
+import java.util.List;
+
+// ✅ Added the 'path' attribute. 
+// Change "/api/users" to exactly match the @RequestMapping of your Identity Service controller.
+@FeignClient(name = "IDENTITYSERVICEEDUGOV", path = "/api/users")
 public interface RemoteUserClient {
 
     @GetMapping("/{id}")
     RemoteUserDto getUserById(@PathVariable("id") Long id);
 
-    // Added GetMapping and PathVariable
     @GetMapping("/role/{role}")
     List<RemoteUserDto> getUsersByRole(@PathVariable("role") String role);
 }

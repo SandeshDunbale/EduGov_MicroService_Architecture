@@ -11,18 +11,15 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/compliance")
-@CrossOrigin(origins = "*")
 public class ComplianceController {
 
-    // IMPORTANT: Inject Interface for Circuit Breaker Proxy
     @Autowired 
     private ComplianceService service;
 
     @PostMapping("/generate/{officerId}")
     public ResponseEntity<String> generate(@PathVariable Long officerId) {
         service.generateCompliance(officerId);
-        return ResponseEntity.ok("Scan completed.");
-        
+        return ResponseEntity.ok("Compliance scan initiated successfully. Check logs for violation details.");
     }
 
     @GetMapping("/{id}")
@@ -31,8 +28,11 @@ public class ComplianceController {
     }
 
     @PostMapping("/create")
-    public ResponseEntity<ComplianceRecordDTO> create(@RequestBody ComplianceRecord record, @RequestHeader("X-User-Id") Long id) {
-        return ResponseEntity.ok(service.createManual(record, id));
+    public ResponseEntity<ComplianceRecordDTO> create(@RequestBody ComplianceRecord record) {
+        if (record.getOfficerId() == null) {
+            throw new IllegalArgumentException("Officer ID is missing from the request body");
+        }
+        return ResponseEntity.ok(service.createManual(record, record.getOfficerId()));
     }
 
     @GetMapping("/all")

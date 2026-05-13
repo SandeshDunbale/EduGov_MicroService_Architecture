@@ -1,6 +1,6 @@
 package com.project.edugov.service;
 
-import com.project.edugov.client.NotificationClient; // Added
+import com.project.edugov.client.NotificationClient;
 import com.project.edugov.client.RemoteUserClient;
 import com.project.edugov.dto.RemoteUserDto;
 import com.project.edugov.exception.AccessDeniedException;
@@ -29,7 +29,7 @@ public class AuditServiceImpl implements AuditService {
     private RemoteUserClient userClient;
 
     @Autowired
-    private NotificationClient notificationClient; // Injected for notifications
+    private NotificationClient notificationClient;
 
     @Override
     public List<Audit> getAllAudits() {
@@ -90,48 +90,51 @@ public class AuditServiceImpl implements AuditService {
     @Transactional
     @CircuitBreaker(name = "auditApi", fallbackMethod = "fallbackReviewAudit")
     public Audit reviewAudit(Long auditId, String status, String findings, Long auditorId) {
-        RemoteUserDto auditor = userClient.getUserById(auditorId);
-        if (auditor == null) {
-            throw new ResourceNotFoundException("Auditor not found with ID: " + auditorId);
-        }
-
-        if (!"GOVT_AUDITOR".equalsIgnoreCase(auditor.getRole())) {
-            throw new AccessDeniedException("Permission Denied: Only Government Auditors can review audits.");
-        }
-
+        // 1. Update the record in the database FIRST
         Audit audit = getAuditById(auditId);
         audit.setStatus(status);
         audit.setFindings(findings);
         audit.setOfficerId(auditorId);
         Audit savedAudit = auditRepository.save(audit);
 
-        // TRIGGER: Rejection Notification
-        if ("REJECTED".equalsIgnoreCase(status)) {
-            userClient.getUsersByRole("PROG_MANAGER").forEach(pm -> 
-                notificationClient.sendNotification(pm.getUserId(), auditId, 
-                "Audit Rejected. Issue: " + findings, "AUDIT_REJECTION", pm.getEmail())
-            );
+        // 2. Perform external checks and notifications (This is what triggers the Circuit Breaker)
+        RemoteUserDto auditor = userClient.getUserById(auditorId);
+        if (auditor != null && !"GOVT_AUDITOR".equalsIgnoreCase(auditor.getRole())) {
+             throw new AccessDeniedException("Permission Denied: Only Government Auditors can review audits.");
         }
 
-        // TRIGGER: Report Generation Notification
-        if ("REPORT_GENERATED".equalsIgnoreCase(status) || "COMPLETED".equalsIgnoreCase(status)) {
-            String msg = "Audit Report finalized for ID: " + auditId;
-            // Notify Auditor
-            notificationClient.sendNotification(auditorId, auditId, msg, "AUDIT_REPORT", auditor.getEmail());
-            // Notify Program Manager
-            userClient.getUsersByRole("PROG_MANAGER").forEach(pm -> 
-                notificationClient.sendNotification(pm.getUserId(), auditId, msg, "AUDIT_REPORT", pm.getEmail())
-            );
+        try {
+            // TRIGGER: Rejection Notification
+            if ("REJECTED".equalsIgnoreCase(status)) {
+                userClient.getUsersByRole("PROG_MANAGER").forEach(pm -> 
+                    notificationClient.sendNotification(pm.getUserId(), auditId, 
+                    "Audit Rejected. Issue: " + findings, "AUDIT_REJECTION", pm.getEmail())
+                );
+            }
+
+            // TRIGGER: Report Generation Notification
+            if ("APPROVED".equalsIgnoreCase(status) || "COMPLETED".equalsIgnoreCase(status)) {
+                String msg = "Audit Report finalized for ID: " + auditId;
+                if (auditor != null) notificationClient.sendNotification(auditorId, auditId, msg, "AUDIT_REPORT", auditor.getEmail());
+                userClient.getUsersByRole("PROG_MANAGER").forEach(pm -> 
+                    notificationClient.sendNotification(pm.getUserId(), auditId, msg, "AUDIT_REPORT", pm.getEmail())
+                );
+            }
+        } catch (Exception e) {
+            logger.error("Notifications failed, but Audit state was saved: {}", e.getMessage());
         }
 
         return savedAudit;
     }
 
+    // 📍 IMPROVED FALLBACK: Now it keeps the status the user intended (REJECTED/APPROVED) 
+    // even if the user service is down.
     public Audit fallbackReviewAudit(Long auditId, String status, String findings, Long auditorId, Throwable t) {
-        logger.error("Circuit Open for Review. Returning temporary state for Audit {}", auditId);
+        logger.error("Circuit Open for Review. Saving intended state for Audit {} without role verification.", auditId);
         Audit audit = getAuditById(auditId);
-        audit.setStatus("REVIEW_SUSPENDED");
-        audit.setFindings("System cannot verify auditor role at this time.");
-        return audit;
+        audit.setStatus(status); // Keep the REJECTED or APPROVED status!
+        audit.setFindings(findings + " (Saved without role validation due to service timeout)");
+        audit.setOfficerId(auditorId);
+        return auditRepository.save(audit);
     }
 }

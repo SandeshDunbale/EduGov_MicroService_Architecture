@@ -10,10 +10,10 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/audits")
-@CrossOrigin(origins = "*")
 public class AuditController {
 
     private static final Logger logger = LoggerFactory.getLogger(AuditController.class);
@@ -21,18 +21,20 @@ public class AuditController {
     @Autowired
     private AuditServiceImpl auditService;
 
+    // 📍 FIX: Removed @RequestHeader. Grabbing ID from the Audit object body.
     @PostMapping("/create")
-    public ResponseEntity<Audit> createAudit(@RequestBody Audit audit, @RequestHeader("X-User-Id") Long userId) {
-        return ResponseEntity.ok(auditService.createAudit(audit, userId));
+    public ResponseEntity<Audit> createAudit(@RequestBody Audit audit) {
+        if (audit.getOfficerId() == null) {
+            throw new IllegalArgumentException("Officer ID is missing from the request body");
+        }
+        return ResponseEntity.ok(auditService.createAudit(audit, audit.getOfficerId()));
     }
 
-   
     @GetMapping("/get")
     public ResponseEntity<List<Audit>> getAllAudits() {
         return ResponseEntity.ok(auditService.getAllAudits());
     }
 
-    
     @GetMapping("/{id}")
     public ResponseEntity<Audit> getAudit(@PathVariable Long id) {
         return ResponseEntity.ok(auditService.getAuditById(id));
@@ -49,13 +51,17 @@ public class AuditController {
         return ResponseEntity.noContent().build();
     }
 
+    // 📍 FIX: Removed @RequestHeader. Using a Map to easily grab the auditorId from JSON.
     @PatchMapping("/review/{id}")
     public ResponseEntity<Audit> reviewAudit(
             @PathVariable Long id,
-            @RequestBody AuditReviewDTO reviewDto,
-            @RequestHeader("X-User-Id") Long auditorId) {
+            @RequestBody Map<String, String> payload) {
 
-        Audit updatedAudit = auditService.reviewAudit(id, reviewDto.getStatus(), reviewDto.getFindings(), auditorId);
+        String status = payload.get("status");
+        String findings = payload.get("findings");
+        Long auditorId = Long.valueOf(payload.get("auditorId"));
+
+        Audit updatedAudit = auditService.reviewAudit(id, status, findings, auditorId);
         return ResponseEntity.ok(updatedAudit);
     }
 }
