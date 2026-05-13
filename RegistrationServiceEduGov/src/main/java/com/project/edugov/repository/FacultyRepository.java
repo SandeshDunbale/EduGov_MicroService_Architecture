@@ -12,14 +12,15 @@ import com.project.edugov.model.Status;
 @Repository
 public interface FacultyRepository extends JpaRepository<Faculty, Long> {
 
-    Optional<Faculty> findByUserId(String userId);
+    Optional<Faculty> findByUserId(Long userId);
 
     
     List<Faculty> findByStatus(Status status);
 
  
-    boolean existsByUserId(String userId);
+    boolean existsByUserId(Long userId);
     
     
     List<Faculty> findByDepartmentIgnoreCase(String department);
+   
 }

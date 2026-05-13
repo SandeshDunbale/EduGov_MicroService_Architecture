@@ -61,7 +61,7 @@ public class GatewayConfig {
                         .uri("lb://REGISTRATIONSERVICEEDUGOV"))
 
                 .route("registration-general-view", r -> r
-                        .method("GET").and().path("/students/*", "/faculty/*")
+                        .method("GET").and().path("/students/**", "/faculty/**")
                         .filters(f -> f.filter(authFilter.apply(new AuthenticationFilter.Config(List.of("STUDENT", "FACULTY", "UNIV_ADMIN", "PROG_MANAGER", "GOVT_AUDITOR")))))
                         .uri("lb://REGISTRATIONSERVICEEDUGOV"))
 
@@ -70,6 +70,13 @@ public class GatewayConfig {
                         .method("POST", "PATCH", "PUT").and().path("/programs/**", "/courses/**", "/enrollments/update/**")
                         .filters(f -> f.filter(authFilter.apply(new AuthenticationFilter.Config(List.of("UNIV_ADMIN")))))
                         .uri("lb://ACADEMICPROGRAMSERVICEEDUGOV"))
+                
+                
+             // Add this under your Academic Service section
+                .route("academic-student-view-enrollments", r -> r
+                    .method("GET").and().path("/enrollments/user/**")
+                    .filters(f -> f.filter(authFilter.apply(new AuthenticationFilter.Config(List.of("STUDENT", "UNIV_ADMIN")))))
+                    .uri("lb://ACADEMICPROGRAMSERVICEEDUGOV"))
 
                 .route("academic-student-enroll", r -> r
                         .method("POST").and().path("/enrollments/apply/**")
@@ -105,12 +112,36 @@ public class GatewayConfig {
                         .filters(f -> f.filter(authFilter.apply(new AuthenticationFilter.Config()))) 
                         .uri("lb://NOTIFICATIONSSERVICEEDUGOV"))
 
+                
+                
+               
+                
+                
                 // 9. DOCUMENT SERVICE
                 .route("document-upload-route", r -> r
                         .method("POST").and().path("/api/documents/**")
                         .filters(f -> f.filter(authFilter.apply(new AuthenticationFilter.Config(List.of("STUDENT", "FACULTY", "UNIV_ADMIN")))))
                         .uri("lb://DOCUMENT-SERVICE"))
-                .build();
+             // ... existing code ...
+
+             
+                
+                
+                
+                
+                
+             // 9. DOCUMENT SERVICE
+             // 1. Specific route for file viewing (No filter for browser access)
+                .route("document-view-route", r -> r
+                        .path("/api/documents/file/**")
+                        .uri("lb://DOCUMENT-SERVICE"))
+
+                // 2. General route for API actions (Upload/Verify/List)
+                .route("document-api-route", r -> r
+                        .path("/api/documents/**")
+                        .filters(f -> f.filter(authFilter.apply(new AuthenticationFilter.Config(List.of("STUDENT", "FACULTY", "UNIV_ADMIN")))))
+                        .uri("lb://DOCUMENT-SERVICE"))
+             .build();
     }
 
     @Bean

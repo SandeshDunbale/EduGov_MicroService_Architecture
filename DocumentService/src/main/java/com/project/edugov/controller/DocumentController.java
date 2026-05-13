@@ -1,16 +1,16 @@
 package com.project.edugov.controller;
 
 import java.io.IOException;
+import java.nio.file.*;
 import java.util.List;
+import org.springframework.web.servlet.HandlerMapping;
+import jakarta.servlet.http.HttpServletRequest;
+import lombok.RequiredArgsConstructor;
 
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PatchMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.core.io.Resource;
+import org.springframework.core.io.UrlResource;
+import org.springframework.http.*;
+import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.project.edugov.dto.DocumentResponse;
@@ -18,73 +18,149 @@ import com.project.edugov.model.Document;
 import com.project.edugov.model.Status;
 import com.project.edugov.service.DocumentService;
 
-import lombok.RequiredArgsConstructor;
-
 @RestController
 @RequestMapping("/api/documents")
 @RequiredArgsConstructor
 public class DocumentController {
 
-	private final DocumentService docService;
+    private final DocumentService docService;
 
-	// Change the mapping to include {userType}
-	@PostMapping("/{userType}/upload")
-	public ResponseEntity<DocumentResponse> upload(
-	        @RequestParam("file") MultipartFile file,
-	        @RequestParam Long userId,
-	        @PathVariable String userType, // Changed from @RequestParam to @PathVariable
-	        @RequestParam String docType,
-	        @RequestParam String docNum) throws IOException {
-	    
-	    DocumentResponse response = docService.uploadDocument(file, userId, userType, docType, docNum);
-	    return ResponseEntity.ok(response);
-	}
+    // ✅ Upload
+    @PostMapping("/{userType}/upload")
+    public ResponseEntity<DocumentResponse> upload(
+            @RequestParam("file") MultipartFile file,
+            @RequestParam Long userId,
+            @PathVariable String userType,
+            @RequestParam String docType,
+            @RequestParam String docNum) throws IOException {
 
+        DocumentResponse response = docService.uploadDocument(file, userId, userType, docType, docNum);
+        return ResponseEntity.ok(response);
+    }
+
+    // ✅ Verify
     @PatchMapping("/verify/{docId}")
     public ResponseEntity<DocumentResponse> verify(@PathVariable Long docId,
                                                    @RequestParam Status status,
                                                    @RequestParam String notes,
                                                    @RequestParam Long adminId) {
-        // We call the service method here
+
         DocumentResponse response = docService.verifyDocument(docId, status, notes, adminId);
         return ResponseEntity.ok(response);
     }
-    
-    
- // 1. Get all documents for a specific user
+
+    // ✅ Get all docs for user
     @GetMapping("/user/{userId}")
     public ResponseEntity<List<DocumentResponse>> getUserDocuments(@PathVariable Long userId) {
+        // 1. Fetch from service
         List<Document> documents = docService.getDocumentsByUserId(userId);
-        
-        // Map the list of entities to a list of DTOs
+
+        // 2. Safety Check: If list is null, return empty list instead of crashing
+        if (documents == null) {
+            return ResponseEntity.ok(java.util.Collections.emptyList());
+        }
+
         List<DocumentResponse> response = documents.stream()
             .map(doc -> DocumentResponse.builder()
                 .documentId(doc.getDocumentId())
                 .docType(doc.getDocType())
                 .docNum(doc.getDocNum())
-                .uploadStatus(doc.getVerificationStatus().toString())
+                .file_url(doc.getFileUrl())
+                // 3. Safety Check: Handle potential null status
+                .uploadStatus(doc.getVerificationStatus() != null ? doc.getVerificationStatus().toString() : "PENDING")
                 .uploadedAt(doc.getUploadedDate())
-                .message("Fetched from database")
+                .message("Fetched")
                 .build())
             .toList();
 
         return ResponseEntity.ok(response);
     }
 
-    // 2. Get a single document by its ID
+    // ✅ Get single doc
     @GetMapping("/{docId}")
     public ResponseEntity<DocumentResponse> getDocumentById(@PathVariable Long docId) {
+
         Document doc = docService.getDocumentById(docId);
-        
+
         DocumentResponse response = DocumentResponse.builder()
                 .documentId(doc.getDocumentId())
                 .docType(doc.getDocType())
                 .docNum(doc.getDocNum())
+                .file_url(doc.getFileUrl())   // ✅ FIXED
                 .uploadStatus(doc.getVerificationStatus().toString())
                 .uploadedAt(doc.getUploadedDate())
-                .message("Document found")
+                .message("Found")
                 .build();
 
         return ResponseEntity.ok(response);
     }
+
+    // ✅ ✅ NEW - VIEW FILE (MOST IMPORTANT)
+ // Add this import
+    @GetMapping("/file/**")
+    public ResponseEntity<Resource> viewFile(HttpServletRequest request) throws IOException {
+        // Extract everything after /file/
+        String fullPath = request.getRequestURI(); 
+        String searchTerm = "/api/documents/file/";
+        String relativePath = fullPath.substring(fullPath.indexOf(searchTerm) + searchTerm.length());
+
+        // Decode URL (in case there are spaces or special characters in filenames)
+        relativePath = java.net.URLDecoder.decode(relativePath, java.nio.charset.StandardCharsets.UTF_8);
+
+        Path filePath = Paths.get("C:/edugov-uploads").resolve(relativePath).normalize();
+
+        if (!Files.exists(filePath)) {
+            return ResponseEntity.notFound().build();
+        }
+
+        Resource resource = new UrlResource(filePath.toUri());
+        String contentType = Files.probeContentType(filePath);
+        
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(contentType != null ? contentType : "application/octet-stream"))
+                .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + filePath.getFileName() + "\"")
+                .body(resource);
+    }
+    
+    
+    
+    
+    
+ // NEW SEPARATE METHOD FOR STUDENTS/FACULTY
+    @GetMapping("/view/**")
+    public ResponseEntity<Resource> studentViewFile(HttpServletRequest request) {
+        try {
+            String fullPath = request.getRequestURI(); 
+            // We use a different search term so Admin is never affected
+            String searchTerm = "/api/documents/view/";
+            String relativePath = fullPath.substring(fullPath.indexOf(searchTerm) + searchTerm.length());
+
+            // Decode spaces and special characters for the Student's screenshots
+            String decodedPath = java.net.URLDecoder.decode(relativePath, java.nio.charset.StandardCharsets.UTF_8);
+
+            Path filePath = Paths.get("C:/edugov-uploads").resolve(decodedPath).normalize();
+
+            if (!Files.exists(filePath)) {
+                return ResponseEntity.notFound().build();
+            }
+
+            Resource resource = new UrlResource(filePath.toUri());
+            String contentType = Files.probeContentType(filePath);
+            
+            return ResponseEntity.ok()
+                    .contentType(MediaType.parseMediaType(contentType != null ? contentType : "application/octet-stream"))
+                    .header(HttpHeaders.CONTENT_DISPOSITION, "inline")
+                    .body(resource);
+
+        } catch (Exception e) {
+            // Only logs errors for the new student endpoint
+            System.err.println("Student View Error: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
 }
+
+
+
+
+

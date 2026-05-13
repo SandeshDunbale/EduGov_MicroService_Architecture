@@ -73,4 +73,18 @@ public class FacultyController {
         
         return ResponseEntity.ok(response);
     }
+    
+    
+    @GetMapping("/all")
+    public ResponseEntity<List<FacultyResponseDTO>> getAllFaculty() {
+        return ResponseEntity.ok(facultyService.getAllFaculties()); 
+    }
+    
+    
+    @GetMapping("/user/{userId}")
+    public ResponseEntity<FacultyResponseDTO> getByUserId(@PathVariable Long userId) {
+        return facultyService.getFacultyByUserId(userId) // Ensure this exists in your FacultyService
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
+    }
 }

@@ -17,4 +17,5 @@ public class DocumentResponse {
     private String docNum;
     private String uploadStatus;
     private Instant uploadedAt;
+    private String file_url;
 }

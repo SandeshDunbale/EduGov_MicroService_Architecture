@@ -11,5 +11,6 @@ public class DocumentUploadRequest {
     private Long userId;
     private String userType; // "student" or "faculty"
     private String docType;  // "TRANSCRIPT", "ID_PROOF", etc.
-    private String docNum;   // The unique ID on the physical document
+    private String docNum; 
+    private String file_url;// The unique ID on the physical document
 }

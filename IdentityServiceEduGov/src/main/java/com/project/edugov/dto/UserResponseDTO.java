@@ -9,6 +9,7 @@ import lombok.Data;
 @Data
 public class UserResponseDTO {
     private Long userId;
+    private Long studentId;
     private String name;
     private String email;
     private Role role;

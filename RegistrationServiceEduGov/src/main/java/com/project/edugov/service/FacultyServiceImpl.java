@@ -2,6 +2,7 @@ package com.project.edugov.service;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 import org.modelmapper.ModelMapper;
 import org.springframework.stereotype.Service;
@@ -11,8 +12,6 @@ import com.project.edugov.client.IdentityClient;
 import com.project.edugov.client.NotificationClient;
 import com.project.edugov.dto.FacultyDTO;
 import com.project.edugov.dto.FacultyResponseDTO;
-import com.project.edugov.dto.StudentDTO;
-import com.project.edugov.dto.StudentResponseDTO;
 import com.project.edugov.dto.UserCreateRequest;
 import com.project.edugov.dto.UserResponseDTO;
 import com.project.edugov.model.Faculty;
@@ -64,6 +63,7 @@ public class FacultyServiceImpl implements FacultyService {
         faculty.setDob(dto.getDob());
         faculty.setAddress(dto.getAddress());
         faculty.setEmail(dto.getEmail());
+        faculty.setDepartment(dto.getDepartment());
         faculty.setUserId(iamUser.getUserId());
         faculty.setStatus(Status.PENDING);
          
@@ -224,9 +224,45 @@ public class FacultyServiceImpl implements FacultyService {
         // Since we can't create a student without an Identity ID, we throw an error to the user
         throw new RuntimeException("The Identity Service is currently down. Please try again later.");
     }
+ // Add this implementation in FacultyServiceImpl.java
+    @Override
+    public List<FacultyResponseDTO> getAllFaculties() {
+        return facultyRepo.findAll()
+                .stream()
+                .map(faculty -> {
+                    FacultyResponseDTO dto = new FacultyResponseDTO();
+                    dto.setUserId(faculty.getUserId());
+                    dto.setName(faculty.getName());
+                    dto.setEmail(faculty.getEmail());
+                    dto.setStatus(faculty.getStatus()); 
+                    dto.setDepartment(faculty.getDepartment());
+                          dto.setPhone(faculty.getPhone()) ;
+                              dto.setAddress(faculty.getAddress());
+                              dto.setDob(faculty.getDob());
+                              // Ensure this is PENDING/APPROVED/REJECTED
+                    dto.setFacultyId(faculty.getFacultyId());
+                    return dto;
+                })
+                .collect(Collectors.toList());
+    }
     
-    
-    
+    @Override
+    public Optional<FacultyResponseDTO> getFacultyByUserId(Long userId) {
+        return facultyRepo.findByUserId(userId)
+                .map((com.project.edugov.model.Faculty faculty) -> { // Use full path if needed
+                    FacultyResponseDTO dto = new FacultyResponseDTO();
+                    dto.setFacultyId(faculty.getFacultyId());
+                    dto.setUserId(faculty.getUserId());
+                    dto.setName(faculty.getName());
+                    dto.setEmail(faculty.getEmail());
+                    dto.setPhone(faculty.getPhone());
+                    dto.setDob(faculty.getDob());
+                    dto.setAddress(faculty.getAddress());
+                    dto.setDepartment(faculty.getDepartment());
+                    dto.setStatus(faculty.getStatus());
+                    return dto;
+                });
+    }
 
     private FacultyResponseDTO convertToResponse(Faculty faculty, UserResponseDTO identityData) {
         FacultyResponseDTO resp = mapper.map(faculty, FacultyResponseDTO.class);
@@ -240,6 +276,7 @@ public class FacultyServiceImpl implements FacultyService {
         resp.setUserId(faculty.getUserId());
         resp.setName(faculty.getName());
         resp.setPhone(faculty.getPhone());
+        resp.setDepartment(faculty.getDepartment());
         resp.setDob(faculty.getDob());
         resp.setAddress(faculty.getAddress());
         resp.setStatus(faculty.getStatus());

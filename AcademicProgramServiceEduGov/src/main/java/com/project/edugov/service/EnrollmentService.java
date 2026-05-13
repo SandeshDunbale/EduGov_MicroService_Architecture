@@ -14,4 +14,8 @@ public interface EnrollmentService {
 	EnrollmentResponseDTO updateEnrollmentStatus(Map<String, Object> data);
 
 	List<EnrollmentResponseDTO> getAllEnrollments();
+
+	List<EnrollmentResponseDTO> getEnrollmentsByStudentId(Long studentId);
+	List<EnrollmentResponseDTO> findByStudentId(Long studentId);	
 }
+	

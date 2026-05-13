@@ -27,7 +27,8 @@ public class DocumentServiceImpl implements DocumentService {
     @Override
     @Transactional
     public DocumentResponse uploadDocument(MultipartFile file, Long userId, String userType, String docType, String docNum) throws IOException {
-        
+
+        // ✅ Create folder path
         Path targetLocation = Paths.get(uploadDir)
                 .resolve(userType.toLowerCase())
                 .resolve(userId.toString())
@@ -37,37 +38,46 @@ public class DocumentServiceImpl implements DocumentService {
             Files.createDirectories(targetLocation);
         }
 
+        // ✅ Generate unique filename
         String fileName = System.currentTimeMillis() + "_" + file.getOriginalFilename();
+
         Path filePath = targetLocation.resolve(fileName);
         Files.copy(file.getInputStream(), filePath, StandardCopyOption.REPLACE_EXISTING);
 
+        // ✅ Create URL (IMPORTANT FIX)
+        String relativePath = userType.toLowerCase() + "/" + userId + "/" + docType.toLowerCase() + "/" + fileName;
+
+        String fileUrl = "http://localhost:8002/api/documents/file/" + relativePath;
+
+        // ✅ Save in DB
         Document doc = Document.builder()
                 .userId(userId)
                 .docType(docType.toUpperCase())
                 .docNum(docNum)
-                .fileUrl(filePath.toString())
+                .fileUrl(fileUrl)   
                 .verificationStatus(Status.PENDING)
                 .uploadedDate(Instant.now())
                 .build();
 
         Document savedDoc = docRepo.save(doc);
 
-        // Convert Entity to DTO to fix  error
         return DocumentResponse.builder()
                 .documentId(savedDoc.getDocumentId())
                 .docType(savedDoc.getDocType())
                 .docNum(savedDoc.getDocNum())
+                .file_url(savedDoc.getFileUrl())   // ✅ FIXED
                 .uploadStatus(savedDoc.getVerificationStatus().toString())
                 .uploadedAt(savedDoc.getUploadedDate())
-                .message("Document uploaded successfully to: " + userType)
+                .message("Document uploaded successfully")
                 .build();
     }
 
     @Override
     @Transactional
     public DocumentResponse verifyDocument(Long docId, Status status, String notes, Long adminId) {
+
         Document doc = docRepo.findById(docId)
-                .orElseThrow(() -> new RuntimeException("Document not found with ID: " + docId));
+                .orElseThrow(() -> new RuntimeException("Document not found"));
 
         doc.setVerificationStatus(status);
         doc.setAdminNotes(notes);
@@ -76,14 +86,14 @@ public class DocumentServiceImpl implements DocumentService {
 
         Document updatedDoc = docRepo.save(doc);
 
-        // Convert Entity to DTO to fix Controller error
         return DocumentResponse.builder()
                 .documentId(updatedDoc.getDocumentId())
                 .docType(updatedDoc.getDocType())
                 .docNum(updatedDoc.getDocNum())
+                .file_url(updatedDoc.getFileUrl())   // ✅ FIXED
                 .uploadStatus(updatedDoc.getVerificationStatus().toString())
                 .uploadedAt(updatedDoc.getUploadedDate())
-                .message("Document status updated to " + status)
+                .message("Document status updated")
                 .build();
     }
 
@@ -95,6 +105,6 @@ public class DocumentServiceImpl implements DocumentService {
     @Override
     public Document getDocumentById(Long docId) {
         return docRepo.findById(docId)
-                .orElseThrow(() -> new RuntimeException("Document not found with ID: " + docId));
+                .orElseThrow(() -> new RuntimeException("Document not found"));
     }
 }

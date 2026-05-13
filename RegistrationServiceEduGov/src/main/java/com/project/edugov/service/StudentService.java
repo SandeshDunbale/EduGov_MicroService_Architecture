@@ -26,4 +26,6 @@ public interface StudentService {
 
 	//Module 6 requirements
     List<StudentResponseDTO> getAllStudents();
+
+	Optional<StudentResponseDTO> getStudentByUserId(Long userId);
 }

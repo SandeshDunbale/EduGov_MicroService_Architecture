@@ -87,4 +87,14 @@ public class StudentController {
         log.info("API Hit: GET /students/all | Fetching all students for compliance scan");
         return ResponseEntity.ok(studentService.getAllStudents());
     }
+    
+    
+    @GetMapping("/user/{userId}")
+    public ResponseEntity<StudentResponseDTO> getByUserId(@PathVariable Long userId) {
+        log.info("Fetching student details for User ID: {}", userId);
+        return studentService.getStudentByUserId(userId) // You'll need to add this method to your Service
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
+    }
+    
 }

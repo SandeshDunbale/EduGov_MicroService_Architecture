@@ -2,7 +2,7 @@ package com.project.edugov.controller;
  
 import java.util.List;
 import java.util.Map;
- 
+
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -12,11 +12,12 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
- 
+
 import com.project.edugov.dto.EnrollmentResponseDTO;
 import com.project.edugov.model.Status;
+import com.project.edugov.repository.CourseRepository;
 import com.project.edugov.service.EnrollmentService;
- 
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
  
@@ -27,7 +28,7 @@ import lombok.extern.slf4j.Slf4j;
 public class EnrollmentController {
  
 	private final EnrollmentService enrollmentService;
- 
+	private final CourseRepository courseRepository;	
 	// Apply for enrollments
 	@PostMapping("/apply")
 	public ResponseEntity<EnrollmentResponseDTO> apply(@RequestBody Map<String, Long> request) {
@@ -64,4 +65,9 @@ public class EnrollmentController {
 		log.info("GET: Total {} enrollments found", results.size());
 		return ResponseEntity.ok(results);
 	}
+	
+	// Add this to EnrollmentController.java
+	
+	
+	
 }

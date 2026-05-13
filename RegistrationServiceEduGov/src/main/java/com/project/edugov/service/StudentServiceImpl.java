@@ -256,7 +256,23 @@ public class StudentServiceImpl implements StudentService {
     }
         
        
-
+    @Override
+    public Optional<StudentResponseDTO> getStudentByUserId(Long userId) {
+        log.info("SERVICE: Fetching student profile for User ID: {}", userId);
+        
+        return studentRepo.findByUserId(userId).map(student -> {
+            // Fetch Identity details to get the Email/Name from the IAM service
+            UserResponseDTO identityData = null;
+            try {
+                identityData = identityClient.getUserById(student.getUserId());
+            } catch (Exception e) {
+                log.warn("Identity Service fetch failed for User ID: {}. Using local data.", userId);
+            }
+            
+            // Use your existing converter to build the response
+            return convertToResponseDTO(student, identityData);
+        });
+    }
     
     
     

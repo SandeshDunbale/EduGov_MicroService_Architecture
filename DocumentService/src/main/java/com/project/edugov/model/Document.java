@@ -36,8 +36,8 @@ public class Document {
     @Column(nullable = false)
     private String docNum;
 
-    @Column(nullable = false, length = 512)
-    private String fileUrl; // Path on disk
+    @Column(name = "file_url", nullable = false, columnDefinition = "LONGTEXT")
+    private String fileUrl;// Path on disk
 
     @Enumerated(EnumType.STRING)
     private Status verificationStatus = Status.PENDING;
