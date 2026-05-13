@@ -188,6 +188,24 @@ public class CourseServiceImpl implements CourseService {
 			log.error("[SYSTEM] Failed to notify Faculty ID: {}", fId);
 		}
 
+		// Broadcast alert to all Students
+		try {
+			log.info("[NOTIFICATION] Broadcasting new course alert to all students");
+			List<UserFeignDTO> students = userClient.getUsersByRole("STUDENT");
+			for (UserFeignDTO student : students) {
+				try {
+					notificationClient.sendNotification(student.getUserId(), savedCourse.getCourseId(),
+							"New Course Alert: The course '" + savedCourse.getTitle()
+									+ "' is now open for enrollment in the " + program.getTitle() + " program.",
+							"COURSE_ANNOUNCEMENT", student.getEmail());
+				} catch (Exception ex) {
+					log.error("[NOTIFICATION FAILED] Delivery failed for Student ID: {}", student.getUserId());
+				}
+			}
+		} catch (Exception e) {
+			log.error("[CRITICAL] Student broadcast failed: {}", e.getMessage());
+		}
+
 		// Return created record
 		log.info("[SUCCESS] Course creation complete");
 		return mapToCustomDto(savedCourse);

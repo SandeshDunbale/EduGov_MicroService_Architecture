@@ -20,4 +20,4 @@ public interface EnrollmentService {
 	List<EnrollmentResponseDTO> getEnrollmentsByStudentId(Long studentId);
 	List<EnrollmentResponseDTO> findByStudentId(Long studentId);	
 }
-	
+

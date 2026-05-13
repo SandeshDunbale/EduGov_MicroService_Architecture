@@ -356,6 +356,7 @@ public class EnrollmentServiceImpl implements EnrollmentService {
 		log.info("[SUCCESS] Deletion process complete");
 	}
 
+
 	@Override
 	public List<EnrollmentResponseDTO> findByStudentId(Long studentId) {
 	    log.info("Fetching all enrollment records for student ID: {}", studentId);
@@ -375,9 +376,6 @@ public class EnrollmentServiceImpl implements EnrollmentService {
 	            .map(this::mapToCustomDto) 
 	            .toList();
 	}
-	
-	
-	
 	
 
 }

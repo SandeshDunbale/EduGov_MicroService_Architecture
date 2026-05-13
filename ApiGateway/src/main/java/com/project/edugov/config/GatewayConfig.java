@@ -80,7 +80,23 @@ public class GatewayConfig {
 
                 .route("academic-student-enroll", r -> r
                         .method("POST").and().path("/enrollments/apply/**")
-                        .filters(f -> f.filter(authFilter.apply(new AuthenticationFilter.Config(List.of("STUDENT")))))
+//                        .filters(f -> f.filter(authFilter.apply(new AuthenticationFilter.Config(List.of("STUDENT")))))
+                        .filters(f -> {
+                            AuthenticationFilter.Config config = new AuthenticationFilter.Config();
+                            config.setAllowedRoles(List.of("STUDENT"));
+                            return f.filter(authFilter.apply(config));
+                        })
+                        .uri("lb://ACADEMICPROGRAMSERVICEEDUGOV"))
+                
+                // 4c. Admin viewing enrollments
+                .route("academic-admin-view-enrollments", r -> r
+                        .method("GET").and().path("/enrollments/all", "/enrollments/status/**,/enrollments/**")
+                        .filters(f -> {
+                            AuthenticationFilter.Config config = new AuthenticationFilter.Config();
+                            config.setAllowedRoles(List.of("UNIV_ADMIN","STUDENT"));
+                            return f.filter(authFilter.apply(config));
+                        })
+
                         .uri("lb://ACADEMICPROGRAMSERVICEEDUGOV"))
 
                 .route("academic-general-view", r -> r

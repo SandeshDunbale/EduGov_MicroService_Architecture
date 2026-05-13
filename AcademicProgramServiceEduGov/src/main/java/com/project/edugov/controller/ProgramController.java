@@ -58,7 +58,7 @@ public class ProgramController {
 
 	// Update an existing program
 	@PatchMapping("/update/{id}")
-	public ResponseEntity<ProgramDTO> updateProgram(@Valid @RequestBody Program details, @PathVariable Long id) {
+	public ResponseEntity<ProgramDTO> updateProgram( @RequestBody Program details, @PathVariable Long id) {
 		log.info("PATCH: updating program {} with new info...", id);
 		ProgramDTO result = programService.updateProgramById(id, details);
 		log.info("PATCH: program {} updated successfully", result.getProgramId());
