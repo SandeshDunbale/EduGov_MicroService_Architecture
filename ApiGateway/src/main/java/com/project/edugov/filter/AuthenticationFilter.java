@@ -95,6 +95,11 @@ public class AuthenticationFilter extends AbstractGatewayFilterFactory<Authentic
  
     public static class Config {
         private List<String> allowedRoles;
+        
+       //newly added
+        public Config(List<String> allowedRoles) {
+            this.allowedRoles = allowedRoles;
+        }
  
         public Config() {}
  

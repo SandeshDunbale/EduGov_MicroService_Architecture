@@ -28,4 +28,7 @@ public interface FacultyService {
 
 
     String deleteFaculty(Long id);
+    
+    List<FacultyResponseDTO> getAllFaculties();
+
 }

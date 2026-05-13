@@ -162,8 +162,8 @@ public class UserServiceImpl implements UserService {
         
         // 6. LOG USER REGISTRATION
         auditLogService.logActionForUser(savedUser, "REGISTER_USER", "Role assigned: " + request.role());
-        
-        return savedUser;
+        return userRepository.saveAndFlush(user);
+
     }
     
     @Override

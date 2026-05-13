@@ -35,12 +35,7 @@ public class FacultyController {
     }
     
  // 7. Get Faculty by User ID (Needed for Auth Service Token Generation)
-    @GetMapping("/user/{userId}")
-    public ResponseEntity<FacultyResponseDTO> getByUserId(@PathVariable Long userId) {
-        return facultyService.getFacultyByUserId(userId)
-                .map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build());
-    }
+    
 
     // 3. Get all Faculties by Status (PENDING, APPROVED, REJECTED)
     @GetMapping("/status/{status}")
@@ -80,4 +75,19 @@ public class FacultyController {
         
         return ResponseEntity.ok(response);
     }
+    
+    
+    @GetMapping("/all")
+    public ResponseEntity<List<FacultyResponseDTO>> getAllFaculty() {
+        return ResponseEntity.ok(facultyService.getAllFaculties()); 
+    }
+    
+    
+    @GetMapping("/user/{userId}")
+    public ResponseEntity<FacultyResponseDTO> getByUserId(@PathVariable Long userId) {
+        return facultyService.getFacultyByUserId(userId) // Ensure this exists in your FacultyService
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
+    }
+    
 }

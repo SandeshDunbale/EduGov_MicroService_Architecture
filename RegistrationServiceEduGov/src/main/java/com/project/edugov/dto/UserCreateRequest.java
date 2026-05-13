@@ -15,5 +15,6 @@ public class UserCreateRequest {
     private String name;
     private String role;
     private String phone ;
-    private LocalDate dob;// You will pass "STUDENT" or "FACULTY" here
+    private LocalDate dob;
+   // You will pass "STUDENT" or "FACULTY" here
 }

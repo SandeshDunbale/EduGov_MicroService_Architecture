@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.project.edugov.dto.EnrollmentResponseDTO;
 import com.project.edugov.model.Status;
+import com.project.edugov.repository.CourseRepository;
 import com.project.edugov.service.EnrollmentService;
 
 import lombok.RequiredArgsConstructor;
@@ -30,6 +31,8 @@ import lombok.extern.slf4j.Slf4j;
 public class EnrollmentController {
 
 	private final EnrollmentService enrollmentService;
+
+	private final CourseRepository courseRepository;	
 
 	// Apply for enrollments
 	@PostMapping("/apply")
@@ -75,4 +78,9 @@ public class EnrollmentController {
 		log.info("GET: Total {} enrollments found", results.size());
 		return ResponseEntity.ok(results);
 	}
+	
+	// Add this to EnrollmentController.java
+	
+	
+	
 }

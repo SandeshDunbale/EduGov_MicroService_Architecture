@@ -255,6 +255,24 @@ public class EnrollmentServiceImpl implements EnrollmentService {
 		log.info("[SUCCESS] Status update process complete");
 		return mapToCustomDto(savedEnrollment);
 	}
+	
+	
+	
+	@Override
+	public List<EnrollmentResponseDTO> getEnrollmentsByStudentId(Long studentId) {
+	    // 1. Get the list from the repo you just fixed
+	    List<Enrollment> enrollments = enrollmentRepo.findByStudentId(studentId);
+
+	    // 2. Convert to DTOs so React gets the Title and Status
+	    return enrollments.stream().map(e -> {
+	        EnrollmentResponseDTO dto = new EnrollmentResponseDTO();
+	        dto.setEnrollmentId(e.getEnrollmentId());
+	        dto.setStatus(e.getStatus());
+	        dto.setCourseId(e.getCourse().getCourseId());
+	        dto.setCourseTitle(e.getCourse().getTitle()); // This is crucial for the card!
+	        return dto;
+	    }).toList();
+	}
 
 	@Override
 	public List<EnrollmentResponseDTO> getEnrollmentsByStatus(Status status) {
@@ -337,4 +355,29 @@ public class EnrollmentServiceImpl implements EnrollmentService {
 		log.info("[DATABASE SUCCESS] Enrollment {} permanently removed by Admin {}", enrollmentId, adminId);
 		log.info("[SUCCESS] Deletion process complete");
 	}
+
+	@Override
+	public List<EnrollmentResponseDTO> findByStudentId(Long studentId) {
+	    log.info("Fetching all enrollment records for student ID: {}", studentId);
+
+	    // 1. Fetch the entities from the repository
+	    List<Enrollment> enrollments = enrollmentRepo.findByStudentId(studentId);
+
+	    // 2. Handle empty results gracefully for the UI
+	    if (enrollments.isEmpty()) {
+	        log.warn("No enrollments found for student {}", studentId);
+	        return List.of(); // Return empty list so React can show "No Courses Found"
+	    }
+
+	    // 3. Convert Entities to DTOs using your existing helper
+	    // This ensures courseTitle and facultyName are populated!
+	    return enrollments.stream()
+	            .map(this::mapToCustomDto) 
+	            .toList();
+	}
+	
+	
+	
+	
+
 }

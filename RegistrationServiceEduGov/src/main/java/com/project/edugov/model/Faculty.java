@@ -20,7 +20,8 @@ public class Faculty {
     private String name;
     private String phone;
     private LocalDate dob;
-    
+    private String address;
+    private String email;
     @Column(length = 150)
     private String department;
 

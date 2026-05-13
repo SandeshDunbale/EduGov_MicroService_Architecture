@@ -28,5 +28,5 @@ public interface StudentService {
     List<StudentResponseDTO> getAllStudents();
     
  // 🟢 NEW: Fetch by User ID
-    Optional<StudentResponseDTO> getStudentByUserId(Long userId);
+	Optional<StudentResponseDTO> getStudentByUserId(Long userId);
 }

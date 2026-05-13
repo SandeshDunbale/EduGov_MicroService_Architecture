@@ -23,6 +23,7 @@ public class Student {
     private LocalDate dob;
     private String phone;
     private String address;
+    private String email;
 
     @Enumerated(EnumType.STRING) // This ensures "APPROVE" is saved as text
     @Column(name = "status", length = 20) // Give it enough length

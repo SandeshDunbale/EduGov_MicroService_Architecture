@@ -1,10 +1,16 @@
 package com.project.edugov.dto;
 
-import com.project.edugov.model.Status;
-import lombok.Data;
 import java.time.LocalDate;
 
-@Data
+import com.project.edugov.model.Status;
+
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+@Data 
+@NoArgsConstructor// Crucial for Jackson to create the object
+@AllArgsConstructor
 public class StudentResponseDTO {
     private Long studentId; // From your DB
     private Long userId;    // From Teammate's IAM

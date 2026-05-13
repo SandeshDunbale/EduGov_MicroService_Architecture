@@ -6,6 +6,7 @@ import java.util.Map;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -29,6 +30,7 @@ import lombok.extern.slf4j.Slf4j;
 @RequestMapping("/students")
 @RequiredArgsConstructor
 @Slf4j
+
 public class StudentController {
 
     private final StudentService studentService;
@@ -41,13 +43,6 @@ public class StudentController {
     }
     
     // 🟢 METHOD 1: Path changed slightly to avoid the "Ambiguous mapping" crash
-    @GetMapping("/user/profile/{userId}")
-    public ResponseEntity<StudentResponseDTO> getByUserId(@PathVariable Long userId) {
-        return studentService.getStudentByUserId(userId)
-                .map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build());
-    }
-
     @GetMapping("/{id}")
     public ResponseEntity<StudentResponseDTO> getById(@PathVariable Long id) {
         return studentService.getStudentById(id)
@@ -93,10 +88,24 @@ public class StudentController {
         log.info("API Hit: GET /students/all | Fetching all students for compliance scan");
         return ResponseEntity.ok(studentService.getAllStudents());
     }
-    
+
     // 🟢 METHOD 2: Kept exactly as your Feign Client expects it
+//    @GetMapping("/user/{userId}")
+//    public ResponseEntity<StudentResponseDTO> getStudentByUserId(@PathVariable Long userId) {
+//        return studentService.getStudentByUserId(userId)
+//                .map(ResponseEntity::ok)
+//                .orElseGet(() -> ResponseEntity.notFound().build()); 
+//    }
+//    @GetMapping("/user/{userId}")
+//    public ResponseEntity<StudentResponseDTO> getByUserId(@PathVariable Long userId) {
+//        log.info("Fetching student details for User ID: {}", userId);
+//        return studentService.getStudentByUserId(userId) // You'll need to add this method to your Service
+//                .map(ResponseEntity::ok)
+//                .orElse(ResponseEntity.notFound().build());
+//    }
     @GetMapping("/user/{userId}")
     public ResponseEntity<StudentResponseDTO> getStudentByUserId(@PathVariable Long userId) {
+        log.info("Fetching student details for User ID: {}", userId);
         return studentService.getStudentByUserId(userId)
                 .map(ResponseEntity::ok)
                 .orElseGet(() -> ResponseEntity.notFound().build()); 

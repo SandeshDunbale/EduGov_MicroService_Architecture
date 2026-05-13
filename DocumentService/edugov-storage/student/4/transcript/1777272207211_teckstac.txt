@@ -1,0 +1,233 @@
+import React, { Component } from 'react';
+import './stock.css';
+ 
+class Stock extends Component {
+   // IMPLEMENT YOUR CODE HERE. "stockSymbol", "marketPrice" and "options" are sent through one props data (i.e) as JSON
+   render(){
+       // Extracting the 'stocks' object from props
+       const { stockSymbol, marketPrice, options } = this.props.stocks;
+ 
+       return (
+<div>
+               {/* Main Heading */}
+<h1>Stock Securities</h1>
+ 
+               {/* Stock Symbol Section */}
+<h3>Stock Symbol</h3>
+               {stockSymbol}
+ 
+               {/* Market Price Section */}
+<h3>Market Price</h3>
+               {marketPrice}
+ 
+               {/* Options Section (Array data) */}
+<h3>Options</h3>
+               {/* Rendering array elements separated by a space or comma as per typical screenshot requirements */}
+               {options[0]} {options[1]}
+</div>
+       );
+   }
+}
+ 
+export default Stock;
+
+=========search for course availablity====
+import React, { Component } from 'react';
+import './styles.css';
+import courseList from './courseList.json';
+
+class Search extends Component {
+    constructor(props) {
+        super(props);
+        this.state = {
+            course: '',
+            name: '',
+            submitStatus: false
+        };
+    }
+
+    displayName = (event) => {
+        // Requirement: set the state for name by fetching text from the name text box
+        this.setState({ name: event.target.value });
+    }
+
+    searchCourse = (event) => {
+        const userInput = event.target.value;
+        
+        // Requirement: Compare irrespective of case
+        // We use .some() to check if the exact string exists in the array
+        const found = courseList.some(item => item.toLowerCase() === userInput.toLowerCase());
+
+        let statusMessage = "";
+        if (found) {
+            // Exact Match for Screenshot 2
+            statusMessage = `course '${userInput}' is currently available`;
+        } else {
+            // Exact Match for Screenshot 1
+            statusMessage = `course '${userInput}' is currently not available`;
+        }
+
+        // Requirement: On entering the course name, 'on change' should take place
+        this.setState({ course: statusMessage });
+    }
+
+    handleSubmit = (event) => {
+        // Use preventDefault to avoid reset
+        event.preventDefault();
+        this.setState({ submitStatus: true });
+    }
+
+    render() {
+        return (
+            <div>
+                <h2>EXCEL COACHING CENTRE</h2>
+                <form onSubmit={this.handleSubmit}>
+                    <label>Name</label><br />
+                    <input type="text" id="name" onChange={this.displayName} /><br />
+
+                    <label>Qualification</label><br />
+                    <select>
+                        <option value="BE/BTech">BE/BTech</option>
+                        <option value="ME/MTech">ME/MTech</option>
+                        <option value="BCA/MCA">BCA/MCA</option>
+                    </select><br />
+
+                    <label>Search by Course</label><br />
+                    <input type="text" id="search" onChange={this.searchCourse} /><br />
+
+                    <button type="submit" id="submit" onClick={this.handleSubmit}>Submit</button>
+                </form>
+
+                {/* Requirement: Display only when submitStatus is true */}
+                {this.state.submitStatus && (
+                    <Display 
+                        name={this.state.name} 
+                        course={this.state.course} 
+                    />
+                )}
+            </div>
+        );
+    }
+}
+
+class Display extends Component {
+    render() {
+        // Requirement: "Welcome to Excel coaching centre!!! Hi <name>, <courseName>"
+        // Note: <courseName> here refers to the statusMessage passed via props
+        return (
+            <div>
+                <p>Welcome to Excel coaching centre!!!</p>
+                <p>Hi {this.props.name}, {this.props.course}</p>
+            </div>
+        );
+    }
+}
+
+export { Display };
+export default Search;
+
+
+
+======student detail++==
+import React, { Component } from 'react';
+import './styles.css';
+
+// DO NOT CHANGE THE BELOW list INITIALIZATION
+const studentsList = [
+    {
+        id: 'RS001',
+        firstname: 'Robin',
+        lastname: 'Wieruch',
+        course: 'Bio-tech',
+        batch: '2013-2017',
+    },
+    {
+        id: 'RS002',
+        firstname: 'Dave',
+        lastname: 'Johnson',
+        course: 'IT',
+        batch: '2014-2018',
+    },
+];
+
+class StudentDetails extends React.Component {
+    // IMPLEMENT YOUR CODE HERE.
+    render() {
+        return (
+            <div>
+                <h1>ZION - The Training Academy</h1>
+                
+                {/* Use map to iterate over the studentsList */}
+                {studentsList.map((student) => {
+                    const { id, firstname, lastname, course, batch } = student;
+                    
+                    return (
+                        <dl key={id}>
+                            <dt>Id : {id}</dt>
+                            {/* Concatenating firstname and lastname as shown in the example screenshot */}
+                            <dd>Student Name : {firstname} {lastname}</dd>
+                            <dd>Course : {course}</dd>
+                            <dd>Batch : {batch}</dd>
+                        </dl>
+                    );
+                })}
+            </div>
+        );
+    }
+}
+
+export default StudentDetails;
+
+=====sticky notes===
+<div class="container mt-5">
+    <div class="d-flex flex-wrap justify-content-around">
+
+        <div id="tasks-1" class="notice">
+            <div class="bg-success">
+                <h4 class="text-white">Completed Tasks</h4>
+                <p class="text-white">Till Today</p>
+                <ul>
+                    <li>Task 1</li>
+                </ul>
+            </div>
+        </div>
+
+        <div id="tasks-2" class="notice">
+            <div class="bg-info">
+                <h4 class="text-white">On Going Tasks</h4>
+                <p class="text-white">Important</p>
+                <ul>
+                    <li>Task 2</li>
+                </ul>
+            </div>
+        </div>
+
+        <div id="tasks-3" class="notice">
+            <div class="bg-warning">
+                <h4 class="text-white">Upcoming Tasks</h4>
+                <p class="text-white">To do List</p>
+                <ul>
+                    <li>Task 3</li>
+                </ul>
+            </div>
+        </div>
+
+        <div id="tasks-4" class="notice">
+            <div class="bg-danger">
+                <h4 class="text-white">Pending Tasks</h4>
+                <p class="text-white">Need Help</p>
+                <ul>
+                    <li>Task 4</li>
+                </ul>
+            </div>
+        </div>
+
+    <div id="tasks-5" class="notice">
+    <div class="bg-info">
+        <h4 class="text-white text-center">Add New</h4>
+        <h1 class="text-center text-white">+</h1>
+    </div>
+</div>
+
+    </div>
+</div>
