@@ -68,6 +68,11 @@ public class ProgramServiceImpl implements ProgramService {
 		}
 		return dto;
 	}
+	@Override
+	public long getTotalCount() {
+	    log.info("Fetching total count of academic programs");
+	    return programRepo.count();
+	}
 
 	@Override
 	public ProgramDTO createProgram(Program program, Long adminId) {

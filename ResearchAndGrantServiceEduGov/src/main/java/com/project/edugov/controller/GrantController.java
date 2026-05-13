@@ -29,7 +29,17 @@ import lombok.extern.slf4j.Slf4j;
 public class GrantController {
 
 	private final GrantService grantService;
-	// private final AuditServiceImpl auditService;
+
+	//private final AuditServiceImpl auditService;
+	// Add this to GrantController.java
+
+	@GetMapping("/count")
+	public ResponseEntity<Long> getTotalGrants() {
+	    log.info("API Hit: GET /api/grants/count");
+	    // Add this to grantService as well (e.g., return repository.count())
+	    return ResponseEntity.ok(grantService.getTotalCount());
+	}
+
 
 	@PostMapping("/apply/{projectId}")
 	public ResponseEntity<GrantApplicationDTO> applyForGrant(@Valid @RequestBody GrantApplication application,

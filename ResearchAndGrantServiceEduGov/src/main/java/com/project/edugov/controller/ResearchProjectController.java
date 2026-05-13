@@ -58,6 +58,12 @@ public class ResearchProjectController {
 
 		return ResponseEntity.ok(projects);
 	}
+	@GetMapping("/count")
+	public ResponseEntity<Long> getTotalProjects() {
+	    log.info("API Hit: GET /api/projects/count");
+	    // You'll need to add this method to your projectService
+	    return ResponseEntity.ok(projectService.getTotalCount());
+	}
 
 	@GetMapping("/{projectId}")
 	public ResponseEntity<ResearchProjectDTO> getProjectById(@PathVariable Long projectId) {

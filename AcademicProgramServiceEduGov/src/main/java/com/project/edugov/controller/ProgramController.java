@@ -28,7 +28,12 @@ import lombok.extern.slf4j.Slf4j;
 public class ProgramController {
 
 	private final ProgramService programService;
-
+	@GetMapping("/count")
+	public ResponseEntity<Long> getTotalProgramsCount() {
+	    log.info("GET: fetching total program count");
+	    long count = programService.getTotalCount();
+	    return ResponseEntity.ok(count);
+	}
 	// Create a new Program
 	@PostMapping("/save")
 	public ResponseEntity<ProgramDTO> createProgram(@Valid @RequestBody Program program) {
@@ -46,6 +51,7 @@ public class ProgramController {
 		log.info("GET: getting program with title : '{}'", result.getTitle());
 		return ResponseEntity.ok(result);
 	}
+	
 
 	// Fetch a program details by programName
 	@GetMapping("/search/{title}")

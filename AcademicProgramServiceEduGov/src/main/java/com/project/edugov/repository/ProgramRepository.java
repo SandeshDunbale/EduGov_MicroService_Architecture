@@ -19,4 +19,5 @@ public interface ProgramRepository extends JpaRepository<Program, Long> {
 
 	// Module 6 requirement
 	List<Program> findByStatus(Status status);
+	long countByStatus(Status status);
 }

@@ -151,6 +151,12 @@ public class ResearchProjectServiceImpl implements ResearchProjectService {
 		
 		return saved;
 	}
+	// ResearchProjectServiceImpl.java
+	@Override
+	public long getTotalCount() {
+	    log.info("Fetching total count of research projects");
+	    return projectRepository.count();
+	}
 
 	@Override
 	@Transactional
@@ -189,7 +195,7 @@ public class ResearchProjectServiceImpl implements ResearchProjectService {
 		} catch (Exception e) {
 			log.warn("Could not fetch Faculty details for ID: {}", updated.getFacultyId());
 		}
- 
+     
 		// 3. Return the updated DTO
 		return responseDTO;
 	}

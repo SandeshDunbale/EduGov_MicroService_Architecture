@@ -112,6 +112,14 @@ public class GrantServiceImpl implements GrantService {
 		return responseDTO;
 	}
 
+	// GrantServiceImpl.java
+	@Override
+	public long getTotalCount() {
+	    log.info("Fetching total count of grants");
+	    return grantRepository.count();
+	}
+	// ADDED: Circuit Breaker Annotation
+
 	@Override
 	@Transactional
 	@CircuitBreaker(name = "userServiceCb", fallbackMethod = "approveGrantApplicationFallback")

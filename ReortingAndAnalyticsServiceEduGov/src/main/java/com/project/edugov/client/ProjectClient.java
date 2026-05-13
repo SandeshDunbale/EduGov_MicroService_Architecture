@@ -8,6 +8,9 @@ import org.springframework.web.bind.annotation.PathVariable;
 public interface ProjectClient {
     @GetMapping("/api/projects/count")
     long getTotalProjects();
+    
+    @GetMapping("/programs/count") 
+    long getTotalPrograms();
 
     @GetMapping("/api/projects/count/status/{status}")
     long getProjectCountByStatus(@PathVariable("status") String status);
