@@ -58,6 +58,10 @@ public class ResourceRequest {
 
     @Column(name = "decision_at")
     private Instant decisionAt;
+ // In ResourceRequest model
+    @Column(name = "reason")
+    private String reason;
+
 
     @PrePersist
     @PreUpdate

@@ -1,39 +1,24 @@
 package com.project.edugov.controller;
  
 import java.util.List;
-
 import java.util.stream.Collectors;
- 
+
 import org.modelmapper.ModelMapper;
-
 import org.springframework.http.ResponseEntity;
-
 import org.springframework.security.access.prepost.PreAuthorize;
-
 import org.springframework.web.bind.annotation.GetMapping;
-
 import org.springframework.web.bind.annotation.PatchMapping;
-
 import org.springframework.web.bind.annotation.PathVariable;
-
 import org.springframework.web.bind.annotation.RequestBody;
-
 import org.springframework.web.bind.annotation.RequestMapping;
-
 import org.springframework.web.bind.annotation.RequestParam;
-
 import org.springframework.web.bind.annotation.RestController;
- 
+
 import com.project.edugov.dto.UserResponseDTO;
-
 import com.project.edugov.exception.ResourceNotFoundException;
-
 import com.project.edugov.model.Role;
-
 import com.project.edugov.model.Status;
-
 import com.project.edugov.model.User;
-
 import com.project.edugov.service.UserService;
  
 @RestController
@@ -61,13 +46,18 @@ public class UserController {
         return ResponseEntity.ok(email);
     }
 
-// Use hasAnyAuthority to check for the exact string match without the ROLE_ prefix!
 
-// Bulletproof authority check for all roles, with and without prefixes
-
-// Simplified to use the roles that actually exist in your Role enum    //added prog_manger for mod 4
-
+//    @GetMapping("/recoverEmail")
+//    public ResponseEntity<String> recoverEmail(@RequestParam String phone) {
+//        String email = userService.recoverEmailByPhone(phone);
+//        return ResponseEntity.ok(email);
+//    }
+    
+ // Use hasAnyAuthority to check for the exact string match without the ROLE_ prefix!
+ // Bulletproof authority check for all roles, with and without prefixes
+ // Simplified to use the roles that actually exist in your Role enum
     @PreAuthorize("hasAnyAuthority('UNIV_ADMIN', 'ROLE_UNIV_ADMIN', 'FACULTY', 'ROLE_FACULTY', 'STUDENT', 'ROLE_STUDENT','PROG_MANAGER', 'ROLE_PROG_MANAGER')")
+    //@PreAuthorize("hasAnyAuthority('UNIV_ADMIN', 'ROLE_UNIV_ADMIN', 'FACULTY', 'ROLE_FACULTY', 'STUDENT', 'ROLE_STUDENT','PROG_MANAGER', 'ROLE_PROG_MANAGER')")
     @GetMapping("/{id}")
     public ResponseEntity<UserResponseDTO> getUserById(@PathVariable Long id) {
         return userService.getUserById(id)

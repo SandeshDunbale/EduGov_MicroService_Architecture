@@ -16,110 +16,161 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
-@Slf4j
+import feign.FeignException;
+
 @RestControllerAdvice
+@Slf4j
 public class GlobalExceptionHandler {
 
-	// =========================================
-	// NOT FOUND (404)
-	// =========================================
-	@ExceptionHandler(EntityNotFoundException.class)
-	public ResponseEntity<Map<String, Object>> handleEntityNotFound(EntityNotFoundException ex) {
-		log.error("404 - Not Found: {}", ex.getMessage());
-		return build(HttpStatus.NOT_FOUND, ex.getMessage());
-	}
+    // =========================================
+    // ✅ 404 - LOCAL ENTITY NOT FOUND
+    // =========================================
+    @ExceptionHandler(EntityNotFoundException.class)
+    public ResponseEntity<Map<String, Object>> handleEntityNotFound(EntityNotFoundException ex) {
+        log.warn("404 - Not Found: {}", ex.getMessage());
+        return build(HttpStatus.NOT_FOUND, ex.getMessage());
+    }
 
-	// =========================================
-	// BAD REQUEST (400)
-	// =========================================
-	@ExceptionHandler({ IllegalArgumentException.class, IllegalStateException.class })
-	public ResponseEntity<Map<String, Object>> handleBadRequest(RuntimeException ex) {
-		log.error("400 - Bad Request: {}", ex.getMessage());
-		return build(HttpStatus.BAD_REQUEST, ex.getMessage());
-	}
+    // =========================================
+    // ✅ NEW ✅ 404 - DOWNSTREAM NOT FOUND (Program NOT FOUND)
+    // =========================================
+    @ExceptionHandler(FeignException.NotFound.class)
+    public ResponseEntity<Map<String, Object>> handleFeignNotFound(FeignException.NotFound ex) {
 
-	// =========================================
-	// VALIDATION ERROR (422)
-	// =========================================
-	@ExceptionHandler(MethodArgumentNotValidException.class)
-	public ResponseEntity<Map<String, Object>> handleValidationError(MethodArgumentNotValidException ex) {
+        log.warn("404 - Downstream NOT FOUND: {}", ex.getMessage());
 
-		Map<String, String> details = new HashMap<>();
-		ex.getBindingResult().getFieldErrors().forEach(err -> details.put(err.getField(), err.getDefaultMessage()));
+        String message = "Requested resource not found";
 
-		Map<String, Object> body = base(HttpStatus.UNPROCESSABLE_ENTITY);
-		body.put("message", "Validation failed");
-		body.put("details", details);
+        try {
+            String fullMsg = ex.getMessage();
+            String id = fullMsg.replaceAll("[^0-9]", ""); // extract numbers
 
-		return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY).body(body);
-	}
+            message = "Program ID " + id + " not found";
 
-	@ExceptionHandler(ConstraintViolationException.class)
-	public ResponseEntity<Map<String, Object>> handleConstraintViolation(ConstraintViolationException ex) {
+        } catch (Exception ignored) {}
 
-		Map<String, String> details = new HashMap<>();
-		ex.getConstraintViolations().forEach(v -> details.put(v.getPropertyPath().toString(), v.getMessage()));
+        return build(HttpStatus.NOT_FOUND, message);
+    }
 
-		Map<String, Object> body = base(HttpStatus.UNPROCESSABLE_ENTITY);
-		body.put("message", "Constraint violation");
-		body.put("details", details);
+    // =========================================
+    // ✅ 503 - DOWNSTREAM SERVICE DOWN
+    // =========================================
+    @ExceptionHandler(DownstreamServiceUnavailableException.class)
+    public ResponseEntity<Map<String, Object>> handleDownstreamServiceUnavailable(
+            DownstreamServiceUnavailableException ex) {
 
-		return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY).body(body);
-	}
+        Map<String, Object> body = new HashMap<>();
+        body.put("timestamp", Instant.now());
+        body.put("status", HttpStatus.SERVICE_UNAVAILABLE.value());
+        body.put("error", HttpStatus.SERVICE_UNAVAILABLE.getReasonPhrase());
+        body.put("message", ex.getMessage());
+        body.put("service", ex.getServiceName());
 
-	// =========================================
-	// DATA CONFLICTS (409)
-	// =========================================
-	@ExceptionHandler(DataIntegrityViolationException.class)
-	public ResponseEntity<Map<String, Object>> handleDataIntegrity(DataIntegrityViolationException ex) {
-		log.error("409 - Data Integrity Violation", ex);
-		return build(HttpStatus.CONFLICT, "Operation cannot be completed due to related data");
-	}
+        return ResponseEntity
+                .status(HttpStatus.SERVICE_UNAVAILABLE)
+                .body(body);
+    }
 
-	// =========================================
-	// FALLBACK (500)
-	// =========================================
-	@ExceptionHandler(Exception.class)
-	public ResponseEntity<Map<String, Object>> handleGeneralException(Exception ex) {
-		log.error("500 - Internal Server Error", ex);
-		return build(HttpStatus.INTERNAL_SERVER_ERROR, "Unexpected server error");
-	}
+    // =========================================
+    // ✅ NEW ✅ 400 - VALIDATION ERRORS (JSON body)
+    // =========================================
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    public ResponseEntity<Map<String, Object>> handleValidationError(MethodArgumentNotValidException ex) {
 
-	// =========================================
-	// CUSTOM BUSINESS ERRORS
-	// 1. Handle Role Mismatches (Returns 403 Forbidden)
-	@ExceptionHandler(RoleMismatchException.class)
-	public ResponseEntity<Map<String, Object>> handleRoleMismatch(RoleMismatchException ex) {
-	    log.warn("Role mismatch: {}", ex.getMessage());
-	    return build(HttpStatus.FORBIDDEN, ex.getMessage());
-	}
+        Map<String, String> fieldErrors = new HashMap<>();
 
-	// 2. Handle Feign Client Errors (Returns whatever the other service returned)
-	@ExceptionHandler(feign.FeignException.class)
-	public ResponseEntity<Map<String, Object>> handleFeignException(feign.FeignException ex) {
-	    log.error("Feign Error: Status {}, Message {}", ex.status(), ex.getMessage());
-	    
-	    HttpStatus status = HttpStatus.resolve(ex.status());
-	    if (status == null) status = HttpStatus.INTERNAL_SERVER_ERROR;
+        ex.getBindingResult().getFieldErrors()
+                .forEach(error ->
+                        fieldErrors.put(error.getField(), error.getDefaultMessage())
+                );
 
-	    // This extracts the actual error message from the Identity Service
-	    return build(status, "Identity Service Error: " + ex.contentUTF8());
-	}
+        Map<String, Object> body = base(HttpStatus.BAD_REQUEST);
+        body.put("message", "Validation failed");
+        body.put("details", fieldErrors);
 
-	// =========================================
-	// HELPERS
-	// =========================================
-	private ResponseEntity<Map<String, Object>> build(HttpStatus status, String message) {
-		Map<String, Object> body = base(status);
-		body.put("message", message);
-		return ResponseEntity.status(status).body(body);
-	}
+        return ResponseEntity.badRequest().body(body);
+    }
 
-	private Map<String, Object> base(HttpStatus status) {
-		Map<String, Object> body = new HashMap<>();
-		body.put("timestamp", Instant.now());
-		body.put("status", status.value());
-		body.put("error", status.getReasonPhrase());
-		return body;
-	}
+    // =========================================
+    // ✅ NEW ✅ 400 - CONSTRAINT VIOLATION
+    // =========================================
+    @ExceptionHandler(ConstraintViolationException.class)
+    public ResponseEntity<Map<String, Object>> handleConstraintViolation(ConstraintViolationException ex) {
+
+        Map<String, Object> body = base(HttpStatus.BAD_REQUEST);
+        body.put("message", ex.getMessage());
+
+        return ResponseEntity.badRequest().body(body);
+    }
+
+    // =========================================
+    // ✅ 400 - BUSINESS LOGIC ERRORS
+    // =========================================
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<Map<String, Object>> handleBadRequest(IllegalArgumentException ex) {
+        log.warn("400 - Bad Request: {}", ex.getMessage());
+        return build(HttpStatus.BAD_REQUEST, ex.getMessage());
+    }
+
+    @ExceptionHandler(IllegalStateException.class)
+    public ResponseEntity<Map<String, Object>> handleIllegalState(IllegalStateException ex) {
+        log.warn("400 - Illegal State: {}", ex.getMessage());
+        return build(HttpStatus.BAD_REQUEST, ex.getMessage());
+    }
+
+    // =========================================
+    // ✅ 403 - ROLE MISMATCH
+    // =========================================
+    @ExceptionHandler(RoleMismatchException.class)
+    public ResponseEntity<Map<String, Object>> handleRoleMismatch(RoleMismatchException ex) {
+        log.warn("403 - Forbidden: {}", ex.getMessage());
+        return build(HttpStatus.FORBIDDEN, ex.getMessage());
+    }
+
+    // =========================================
+    // ✅ 409 - DATA INTEGRITY
+    // =========================================
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<Map<String, Object>> handleDataIntegrity(DataIntegrityViolationException ex) {
+        log.error("409 - Data Integrity Violation", ex);
+        return build(HttpStatus.CONFLICT, "Operation cannot be completed due to related data");
+    }
+
+    // =========================================
+    // ✅ 503 - FEIGN (GENERIC)
+    // =========================================
+    @ExceptionHandler(FeignException.class)
+    public ResponseEntity<Map<String, Object>> handleFeignException(FeignException ex) {
+        log.error("503 - Feign error", ex);
+        return build(
+                HttpStatus.SERVICE_UNAVAILABLE,
+                "Dependent service is currently unavailable. Please try again later."
+        );
+    }
+
+    // =========================================
+    // ✅ 500 - FALLBACK
+    // =========================================
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<Map<String, Object>> handleGeneralException(Exception ex) {
+        log.error("500 - Internal Server Error", ex);
+        return build(HttpStatus.INTERNAL_SERVER_ERROR, "Unexpected server error");
+    }
+
+    // =========================================
+    // HELPERS
+    // =========================================
+    private ResponseEntity<Map<String, Object>> build(HttpStatus status, String message) {
+        Map<String, Object> body = base(status);
+        body.put("message", message);
+        return ResponseEntity.status(status).body(body);
+    }
+
+    private Map<String, Object> base(HttpStatus status) {
+        Map<String, Object> body = new HashMap<>();
+        body.put("timestamp", Instant.now());
+        body.put("status", status.value());
+        body.put("error", status.getReasonPhrase());
+        return body;
+    }
 }

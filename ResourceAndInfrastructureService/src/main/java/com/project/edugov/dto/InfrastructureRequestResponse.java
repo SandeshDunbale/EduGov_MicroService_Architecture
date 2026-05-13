@@ -20,4 +20,8 @@ public class InfrastructureRequestResponse {
     private Instant createdAt;
     private Instant updatedAt;
     private Instant decisionAt;
+    String reason;
+    private String infrastructureType;
+    private String programName;
+    private String location;
 }

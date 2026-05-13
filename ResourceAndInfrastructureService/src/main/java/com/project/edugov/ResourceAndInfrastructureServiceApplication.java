@@ -35,6 +35,9 @@ public class ResourceAndInfrastructureServiceApplication {
                 if (authHeader != null) {
                     requestTemplate.header("Authorization", authHeader);
                 }
+            }else {
+                // IF YOU SEE THIS IN LOGS, the token is NOT being passed to Identity Service
+                System.out.println("DEBUG: RequestContextHolder is null! Token propagation failed.");
             }
         };
     }

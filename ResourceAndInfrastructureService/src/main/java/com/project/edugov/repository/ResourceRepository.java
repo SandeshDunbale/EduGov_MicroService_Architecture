@@ -34,6 +34,8 @@ public interface ResourceRepository
     Optional<Resource> findFirstByProgramIdAndTypeAndStatus(
             Long programId, ResourceType type, ResourceStatus status
     );
+    List<Resource> findByProgramIdAndType(Long programId, ResourceType type);
+
 
     long countByProgramIdAndStatus(Long programId, ResourceStatus status);
 }
