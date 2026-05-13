@@ -1,5 +1,5 @@
 package com.project.edugov.controller;
- 
+
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -20,13 +20,11 @@ import com.project.edugov.model.Role;
 import com.project.edugov.model.Status;
 import com.project.edugov.model.User;
 import com.project.edugov.service.UserService;
- 
+
 @RestController
-
 @RequestMapping("/api/users")
-
 public class UserController {
- 
+
     private final UserService userService;
     private final ModelMapper modelMapper;
 
@@ -36,10 +34,12 @@ public class UserController {
     }
     
     public record StatusUpdateRequest(Status status) {}
-    
+
     private UserResponseDTO mapToDTO(User user) {
         return modelMapper.map(user, UserResponseDTO.class);
     }
+    
+    
     @GetMapping("/recoverEmail")
     public ResponseEntity<String> recoverEmail(@RequestParam String phone) {
         String email = userService.recoverEmailByPhone(phone);
@@ -56,8 +56,9 @@ public class UserController {
  // Use hasAnyAuthority to check for the exact string match without the ROLE_ prefix!
  // Bulletproof authority check for all roles, with and without prefixes
  // Simplified to use the roles that actually exist in your Role enum
-    @PreAuthorize("hasAnyAuthority('UNIV_ADMIN', 'ROLE_UNIV_ADMIN', 'FACULTY', 'ROLE_FACULTY', 'STUDENT', 'ROLE_STUDENT','PROG_MANAGER', 'ROLE_PROG_MANAGER')")
     //@PreAuthorize("hasAnyAuthority('UNIV_ADMIN', 'ROLE_UNIV_ADMIN', 'FACULTY', 'ROLE_FACULTY', 'STUDENT', 'ROLE_STUDENT','PROG_MANAGER', 'ROLE_PROG_MANAGER')")
+    // ✅ FIXED: Added COMPLIANCE_OFFICER and GOVT_AUDITOR to the allowed authorities
+    @PreAuthorize("hasAnyAuthority('UNIV_ADMIN', 'ROLE_UNIV_ADMIN', 'FACULTY', 'ROLE_FACULTY', 'STUDENT', 'ROLE_STUDENT', 'PROG_MANAGER', 'ROLE_PROG_MANAGER', 'COMPLIANCE_OFFICER', 'ROLE_COMPLIANCE_OFFICER', 'GOVT_AUDITOR', 'ROLE_GOVT_AUDITOR')")
     @GetMapping("/{id}")
     public ResponseEntity<UserResponseDTO> getUserById(@PathVariable Long id) {
         return userService.getUserById(id)
@@ -65,7 +66,8 @@ public class UserController {
                 .orElseThrow(() -> new ResourceNotFoundException("User not found with ID: " + id));
     }
 
-    @PreAuthorize("hasAnyRole('UNIV_ADMIN', 'PROG_MANAGER')")
+    // ✅ FIXED: Added COMPLIANCE_OFFICER and GOVT_AUDITOR so they can fetch Admins to send notifications
+    @PreAuthorize("hasAnyRole('UNIV_ADMIN', 'PROG_MANAGER', 'COMPLIANCE_OFFICER', 'GOVT_AUDITOR')")
     @GetMapping("/role/{role}")
     public ResponseEntity<List<UserResponseDTO>> getUserByRole(@PathVariable Role role) {
         List<UserResponseDTO> users = userService.getUserByRole(role).stream()
@@ -91,7 +93,4 @@ public class UserController {
         User updatedUser = userService.updateUserStatus(id, request.status());
         return ResponseEntity.ok(mapToDTO(updatedUser));
     }
-
 }
-
- 

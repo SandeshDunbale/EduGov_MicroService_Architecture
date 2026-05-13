@@ -2,18 +2,22 @@ package com.project.edugov.dto;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
-
 import com.project.edugov.model.GrantApplicationStatus;
-
+import com.fasterxml.jackson.annotation.JsonProperty; // 👉 Add this import
 import lombok.Data;
 
 @Data
 public class GrantApplicationDTO {
-	private Long applicationID;
-	private Long projectId;
-	private String projectTitle;
-	private FacultyMinimalDTO faculty;
-	private BigDecimal requestedAmount;
-	private GrantApplicationStatus status;
-	private LocalDate submittedDate;
+    
+    @JsonProperty("applicationId") // 👉 Ensures it maps even if JSON is "applicationId"
+    private Long applicationID;
+
+    @JsonProperty("projectId") // 👉 Matches the flattened ID from Research Service
+    private Long projectId;
+
+    private String projectTitle;
+    private FacultyMinimalDTO faculty;
+    private BigDecimal requestedAmount;
+    private GrantApplicationStatus status;
+    private LocalDate submittedDate;
 }
