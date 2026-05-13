@@ -10,6 +10,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.project.edugov.client.FacultyClient;
+import com.project.edugov.client.NotificationClient;
 import com.project.edugov.client.UserClient;
 import com.project.edugov.dto.FacultyMinimalDTO;
 import com.project.edugov.dto.GrantApplicationDTO;
@@ -26,6 +27,9 @@ import com.project.edugov.repository.GrantApplicationRepository;
 import com.project.edugov.repository.GrantRepository;
 import com.project.edugov.repository.ResearchProjectRepository;
 
+// ADDED: Resilience4j Import
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -38,11 +42,15 @@ public class GrantServiceImpl implements GrantService {
 	private final GrantRepository grantRepository;
 	private final ResearchProjectRepository projectRepository;
 	private final ModelMapper modelMapper;
-	//private final NotificationService notificationService;
 	
-	// CHANGED: Feign Clients instead of Repositories!
 	private final UserClient userClient;
 	private final FacultyClient facultyClient;
+	
+	// 1. INJECT AUDIT LOGGER
+	private final AsyncAuditLogger auditLogger;
+
+	private final NotificationClient notificationClient;
+
 
 	@Override
 	@Transactional
@@ -50,7 +58,6 @@ public class GrantServiceImpl implements GrantService {
 		log.info("Received grant application request for Project ID: {} from Faculty ID: {}", projectId, facultyId);
 
 		ResearchProject project = projectRepository.findById(projectId).orElseThrow(() -> {
-			log.error("Grant application failed: Project ID {} not found", projectId);
 			return new ResourceNotFoundException("Project not found with ID: " + projectId);
 		});
 
@@ -61,7 +68,6 @@ public class GrantServiceImpl implements GrantService {
 			GrantApplication existingApp = existingAppOpt.get();
 
 			if (existingApp.getStatus() != GrantApplicationStatus.REJECTED) {
-				log.warn("Duplicate application blocked.");
 				throw new RuntimeException("An active application already exists for this project");
 			}
 
@@ -72,85 +78,101 @@ public class GrantServiceImpl implements GrantService {
 			finalApp = applicationRepository.save(existingApp);
 		} else {
 			newDetails.setProject(project);
-			newDetails.setFacultyId(project.getFacultyId()); // CHANGED: Just the ID
+			newDetails.setFacultyId(project.getFacultyId());
 			newDetails.setStatus(GrantApplicationStatus.SUBMITTED);
 			newDetails.setSubmittedDate(LocalDate.now());
 
 			finalApp = applicationRepository.save(newDetails);
 		}
 
+
+		// 2. FIRE AUDIT LOG (Logged under Faculty ID)
+		auditLogger.fireAndForgetLog(facultyId, "APPLY_GRANT", "Project ID: " + projectId + ", Amount: $" + finalApp.getRequestedAmount());
+
 		// CHANGED: Network call to User Microservice to get all PMs
-//		try {
-//			List<UserExternalDTO> programManagers = userClient.getUsersByRole("PROG_MANAGER");
-//			for (UserExternalDTO pm : programManagers) {
-//				notificationService.createNotification(
-//						pm.getUserId(),
-//						finalApp.getApplicationID(),
-//						"New Grant Application submitted for Project: " + project.getTitle(),
-//						"GRANTS",
-//						pm.getEmail()
-//				);
-//			}
-//		} catch (Exception e) {
-//			log.warn("Could not fetch Program Managers from User Service for notifications.");
-//		}
+		try {
+			List<UserExternalDTO> programManagers = userClient.getUsersByRole("PROG_MANAGER");
+			for (UserExternalDTO pm : programManagers) {
+				notificationClient.sendNotification(
+						pm.getUserId(),
+						finalApp.getApplicationID(),
+						"New Grant Application submitted for Project: " + project.getTitle(),
+						"GRANTS",
+						pm.getEmail()
+				);
+			}
+		} catch (Exception e) {
+			log.warn("Could not fetch Program Managers from User Service for notifications.");
+		}
+
 
 		GrantApplicationDTO responseDTO = modelMapper.map(finalApp, GrantApplicationDTO.class);
 
-		// 2. ONLY ADD THIS TRY-CATCH BLOCK
 		try {
-			// Fetch the rich Faculty details over the network using the saved facultyId
 			FacultyMinimalDTO facultyProfile = facultyClient.getFacultyById(finalApp.getFacultyId());
 			responseDTO.setFaculty(facultyProfile);
 		} catch (Exception e) {
 			log.warn("Could not fetch Faculty details for ID: {}.", finalApp.getFacultyId());
 		}
 
-		// 3. Return the fully populated response
 		return responseDTO;
 	}
 
+	// ADDED: Circuit Breaker Annotation
 	@Override
 	@Transactional
+	@CircuitBreaker(name = "userServiceCb", fallbackMethod = "approveGrantApplicationFallback")
 	public GrantResponseDTO approveGrantApplication(Long applicationId, Long userId, GrantStatus decision) {
 		log.info("Manager (User ID: {}) is making a decision [{}]", userId, decision);
-
+ 
 		GrantApplication app = applicationRepository.findById(applicationId).orElseThrow(() -> {
 			return new ResourceNotFoundException("Application not found with ID: " + applicationId);
 		});
-
+ 
 		// CHANGED: Network call to User Microservice to verify Manager
 		UserExternalDTO programManager;
 		try {
 			programManager = userClient.getUserById(userId);
 		} catch (Exception e) {
+			log.error("The REAL reason the User Service failed: {}", e.getMessage());
+			// Throwing this exception is what trips the Circuit Breaker and triggers the fallback!
 			throw new ResourceNotFoundException("Manager not found with ID: " + userId + " in User Service");
 		}
-
+ 
 		ResearchProject project = app.getProject();
-
+ 
 		// Fetch the faculty email for notifications using Feign
-//		String facultyEmail = null;
-//		try {
-//			FacultyMinimalDTO facultyDTO = facultyClient.getFacultyById(project.getFacultyId());
-//			facultyEmail = facultyDTO.getEmail();
-//		} catch (Exception e) {
-//			log.warn("Could not fetch Faculty details for notifications.");
-//		}
-
+		String facultyEmail = null;
+		try {
+			FacultyMinimalDTO facultyDTO = facultyClient.getFacultyById(project.getFacultyId());
+			facultyEmail = facultyDTO.getEmail();
+		} catch (Exception e) {
+			log.warn("Could not fetch Faculty details for notifications.");
+		}
+ 
 		if (decision == GrantStatus.UNDER_REVIEW) {
 			app.setStatus(GrantApplicationStatus.UNDER_REVIEW);
 			project.setStatus(ProjectStatus.UNDER_REVIEW);
 			projectRepository.save(project);
 			applicationRepository.save(app);
-			return modelMapper.map(app, GrantResponseDTO.class);
+			
+			// FIX: Manually map fields since we are not creating a Grant record
+			GrantResponseDTO response = new GrantResponseDTO();
+			response.setProjectId(project.getProjectId());
+			response.setProjectTitle(project.getTitle());
+			response.setAmount(app.getRequestedAmount());
+			response.setDate(LocalDate.now());
+			response.setStatus(GrantStatus.UNDER_REVIEW);
+			response.setApprovedByRole(programManager.getRole());
+			
+			return response;
 		}
-
+ 
 		else if (decision == GrantStatus.APPROVED) {
 			app.setStatus(GrantApplicationStatus.APPROVED);
 			project.setStatus(ProjectStatus.COMPLETED);
 			projectRepository.save(project);
-
+ 
 			Grant grant = grantRepository.findByProject_ProjectId(project.getProjectId()).orElse(new Grant());
 			grant.setProject(project);
 			grant.setFacultyId(project.getFacultyId()); // CHANGED
@@ -158,68 +180,83 @@ public class GrantServiceImpl implements GrantService {
 			grant.setDate(LocalDate.now());
 			grant.setStatus(GrantStatus.APPROVED);
 			grant.setApprovedByUserId(userId); // CHANGED
-
+ 
 			applicationRepository.save(app);
 			Grant savedGrant = grantRepository.save(grant);
-
-//			if (facultyEmail != null) {
-//				notificationService.createNotification(
-//						project.getFacultyId(), app.getApplicationID(), 
-//						"Your grant application for '" + project.getTitle() + "' has been APPROVED.", 
-//						"GRANTS", facultyEmail
-//				);
-//			}
-
+ 
+			if (facultyEmail != null) {
+				notificationClient.sendNotification(
+						project.getFacultyId(), app.getApplicationID(),
+						"Your grant application for '" + project.getTitle() + "' has been APPROVED.",
+						"GRANTS", facultyEmail
+				);
+			}
+ 
 			GrantResponseDTO response = modelMapper.map(savedGrant, GrantResponseDTO.class);
 			response.setApprovedByRole(programManager.getRole()); // Attach Role from Network call
 			return response;
 		}
-
+ 
 		else if (decision == GrantStatus.REJECTED) {
 			app.setStatus(GrantApplicationStatus.REJECTED);
 			project.setStatus(ProjectStatus.DRAFT);
 			projectRepository.save(project);
 			applicationRepository.save(app);
-
-//			if (facultyEmail != null) {
-//				notificationService.createNotification(
-//						project.getFacultyId(), app.getApplicationID(),
-//						"Your grant application for '" + project.getTitle() + "' has been REJECTED.",
-//						"GRANTS", facultyEmail
-//				);
-//			}
-
-			GrantResponseDTO response = modelMapper.map(app, GrantResponseDTO.class);
+ 
+			if (facultyEmail != null) {
+				notificationClient.sendNotification(
+						project.getFacultyId(), app.getApplicationID(),
+						"Your grant application for '" + project.getTitle() + "' has been REJECTED.",
+						"GRANTS", facultyEmail
+				);
+			}
+ 
+			// FIX: Manually map fields since we are not creating a Grant record
+			GrantResponseDTO response = new GrantResponseDTO();
+			response.setProjectId(project.getProjectId());
+			response.setProjectTitle(project.getTitle());
+			response.setAmount(app.getRequestedAmount());
+			response.setDate(LocalDate.now()); // Date it was rejected
+			response.setStatus(GrantStatus.REJECTED);
 			response.setApprovedByRole(programManager.getRole()); // Attach Role from Network call
+			
 			return response;
 		}
-
+ 
 		else {
 			throw new RuntimeException("Unsupported decision status: " + decision);
 		}
 	}
+ 
 
-//	@Override
-//	public List<GrantApplicationDTO> getPendingApplications() {
-//		return applicationRepository.findByStatus(GrantApplicationStatus.SUBMITTED).stream()
-//				.map(app -> modelMapper.map(app, GrantApplicationDTO.class)).collect(Collectors.toList());
-//	}
+
+	// --- FALLBACK METHOD FOR APPROVE GRANT (FIXED) ---
+	public GrantResponseDTO approveGrantApplicationFallback(Long applicationId, Long userId, GrantStatus decision, Throwable throwable) {
+		log.error("Circuit Breaker Tripped! User Service unavailable to verify Manager {}. Fallback executing. Reason: {}", userId, throwable.getMessage());
+		
+		GrantResponseDTO fallbackResponse = new GrantResponseDTO();
+		
+		// 1. Pass the Enum directly since the DTO expects GrantStatus
+		fallbackResponse.setStatus(decision); 
+		
+		// 2. Add a clear role indicator so your frontend/logs know the service was down
+		fallbackResponse.setApprovedByRole("SERVICE_UNAVAILABLE");
+		
+		return fallbackResponse;
+	}
+
+
 	@Override
 	public List<GrantApplicationDTO> getPendingApplications() {
 		return applicationRepository.findByStatus(GrantApplicationStatus.SUBMITTED).stream()
 				.map(app -> {
-					// 1. Keep your exact original mapping logic for each item
 					GrantApplicationDTO dto = modelMapper.map(app, GrantApplicationDTO.class);
-					
-					// 2. ONLY ADD THIS TRY-CATCH BLOCK
 					try {
 						FacultyMinimalDTO facultyProfile = facultyClient.getFacultyById(app.getFacultyId());
 						dto.setFaculty(facultyProfile);
 					} catch (Exception e) {
 						log.warn("Could not fetch Faculty details for ID: {}. ", app.getFacultyId());
 					}
-					
-					// 3. Return the enriched DTO to the stream
 					return dto;
 				}).collect(Collectors.toList());
 	}
@@ -230,10 +267,8 @@ public class GrantServiceImpl implements GrantService {
 			return new RuntimeException("No grant found for this project.");
 		});
 		
-		// 1. Map the basic database fields first (Grant ID, Amount, Date, etc.)
 		GrantResponseDTO response = modelMapper.map(grant, GrantResponseDTO.class);
 		
-		// 2. NEW FIX: Fetch the Manager's role dynamically from the Identity Service!
 		if (grant.getApprovedByUserId() != null) {
 			try {
 				UserExternalDTO manager = userClient.getUserById(grant.getApprovedByUserId());
@@ -244,7 +279,6 @@ public class GrantServiceImpl implements GrantService {
 			}
 		}
 
-		// 3. Return the fully populated response
 		return response;
 	}
 
@@ -252,27 +286,21 @@ public class GrantServiceImpl implements GrantService {
 	public List<GrantApplicationDTO> getApplicationHistoryByFaculty(Long facultyId) {
 		return applicationRepository.findByFacultyId(facultyId).stream()
 				.map(app -> {
-					// 1. Keep your exact original mapping logic for each item
 					GrantApplicationDTO dto = modelMapper.map(app, GrantApplicationDTO.class);
-					
-					// 2. ONLY ADD THIS TRY-CATCH BLOCK
 					try {
 						FacultyMinimalDTO facultyProfile = facultyClient.getFacultyById(app.getFacultyId());
 						dto.setFaculty(facultyProfile);
 					} catch (Exception e) {
 						log.warn("Could not fetch Faculty details for ID: {}.", app.getFacultyId());
 					}
-					
-					// 3. Return the enriched DTO to the stream
 					return dto;
 				}).collect(Collectors.toList());
 	}
 	
-	
-	//Module 6 Requirement
+
+
 	@Override
 	public List<GrantApplicationDTO> getGrantApplicationsByStatuses(List<String> statuses) {
-		// Convert String statuses from the request into your Enum
 		List<GrantApplicationStatus> enumStatuses = statuses.stream()
 				.map(GrantApplicationStatus::valueOf)
 				.collect(Collectors.toList());

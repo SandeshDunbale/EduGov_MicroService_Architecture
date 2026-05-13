@@ -6,7 +6,7 @@ import com.project.edugov.dto.CourseDTO;
 import com.project.edugov.model.Course;
 
 public interface CourseService {
-	
+
 	CourseDTO createCourse(Course course);
 
 	List<CourseDTO> getCoursesByFacultyId(Long facultyId);

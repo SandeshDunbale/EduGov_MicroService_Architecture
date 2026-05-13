@@ -25,24 +25,22 @@ public class ResourceServiceImpl implements ResourceService {
     private final ResourceRepository resourceRepo;
     private final ResourceRequestRepository requestRepo;
     private final ProgramClient programClient;
+    private final AsyncAuditLogger auditLogger;
 
     public ResourceServiceImpl(
             ResourceRepository resourceRepo,
             ResourceRequestRepository requestRepo,
-            ProgramClient programClient
+            ProgramClient programClient,
+            AsyncAuditLogger auditLogger
     ) {
         this.resourceRepo = resourceRepo;
         this.requestRepo = requestRepo;
         this.programClient = programClient;
+        this.auditLogger = auditLogger;
     }
 
-    // ================================
-    // CREATE RESOURCE
-    // ================================
     @Override
     public Resource create(Long programId, ResourceType type, Integer quantity, ResourceStatus status) {
-
-        // ✅ Validate Program via Feign
         programClient.getProgramById(programId);
 
         Resource saved = resourceRepo.save(
@@ -55,52 +53,39 @@ public class ResourceServiceImpl implements ResourceService {
         );
 
         log.debug("Resource created → id={}", saved.getResourceId());
+        
+        // Log with 0L representing System/Admin
+        auditLogger.fireAndForgetLog(0L, "CREATE_RESOURCE", "Resource ID: " + saved.getResourceId());
         return saved;
     }
 
-    // ================================
-    // GET BY ID
-    // ================================
     @Override
     public Resource getById(Long resourceId) {
-        return resourceRepo.findById(resourceId)
-                .orElseThrow(() ->
-                        new EntityNotFoundException("Resource not found: " + resourceId));
+        return resourceRepo.findById(resourceId).orElseThrow(() -> new EntityNotFoundException("Resource not found: " + resourceId));
     }
 
-    // ================================
-    // FIND BY PROGRAM ID
-    // ================================
     @Override
     public List<Resource> findByProgramId(Long programId) {
         return resourceRepo.findByProgramId(programId);
     }
 
-    // ================================
-    // FIND BY STATUS
-    // ================================
     @Override
     public List<Resource> findByStatus(ResourceStatus status) {
         return resourceRepo.findByStatus(status);
     }
 
-    // ================================
-    // UPDATE STATUS
-    // ================================
     @Override
     public Resource updateStatus(Long resourceId, ResourceStatus status) {
         Resource r = getById(resourceId);
         r.setStatus(status);
-        return resourceRepo.save(r);
+        Resource saved = resourceRepo.save(r);
+        
+        auditLogger.fireAndForgetLog(0L, "UPDATE_RESOURCE_STATUS", "Resource ID: " + resourceId + " to " + status);
+        return saved;
     }
 
-    // ================================
-    // UPDATE RESOURCE
-    // ================================
     @Override
     public Resource update(Long id, Long programId, ResourceType type, Integer qty, ResourceStatus status) {
-
-        // ✅ Validate Program via Feign
         programClient.getProgramById(programId);
 
         Resource r = getById(id);
@@ -109,18 +94,14 @@ public class ResourceServiceImpl implements ResourceService {
         r.setQuantity(qty);
         r.setStatus(status);
 
-        return resourceRepo.save(r);
+        Resource saved = resourceRepo.save(r);
+        auditLogger.fireAndForgetLog(0L, "UPDATE_RESOURCE", "Resource ID: " + id);
+        return saved;
     }
 
-    // ================================
-    // ALLOCATE
-    // ================================
     @Override
     public Resource allocate(Long resourceId, int qtyToAllocate) {
-
-        if (qtyToAllocate <= 0) {
-            throw new IllegalArgumentException("qtyToAllocate must be > 0");
-        }
+        if (qtyToAllocate <= 0) throw new IllegalArgumentException("qtyToAllocate must be > 0");
 
         Resource r = getById(resourceId);
 
@@ -129,47 +110,34 @@ public class ResourceServiceImpl implements ResourceService {
         }
 
         r.setStatus(ResourceStatus.ALLOCATED);
-        return resourceRepo.save(r);
+        Resource saved = resourceRepo.save(r);
+        
+        auditLogger.fireAndForgetLog(0L, "ALLOCATE_RESOURCE", "Resource ID: " + resourceId + " Qty: " + qtyToAllocate);
+        return saved;
     }
 
-    // ================================
-    // FIND ALL
-    // ================================
     @Override
     @Transactional(readOnly = true)
     public List<Resource> findAll() {
         return resourceRepo.findAll();
     }
 
-    // ================================
-    // DELETE
-    // ================================
     @Override
     public void delete(Long resourceId) {
-
         Resource r = getById(resourceId);
 
-        long active = requestRepo.countByResourceAndStatusIn(
-                r,
-                List.of(
-                        RequestStatus.SUBMITTED,
-                        RequestStatus.IN_REVIEW,
-                        RequestStatus.APPROVED
-                )
-        );
+        long active = requestRepo.countByResourceAndStatusIn(r,
+                List.of(RequestStatus.SUBMITTED, RequestStatus.IN_REVIEW, RequestStatus.APPROVED));
 
         if (active > 0) {
-            throw new IllegalStateException(
-                    "Cannot delete resource " + resourceId + " – active requests exist"
-            );
+            throw new IllegalStateException("Cannot delete resource " + resourceId + " – active requests exist");
         }
 
         try {
             resourceRepo.delete(r);
+            auditLogger.fireAndForgetLog(0L, "DELETE_RESOURCE", "Resource ID: " + resourceId);
         } catch (DataIntegrityViolationException ex) {
-            throw new IllegalStateException(
-                    "Cannot delete resource due to related data", ex
-            );
+            throw new IllegalStateException("Cannot delete resource due to related data", ex);
         }
     }
 }

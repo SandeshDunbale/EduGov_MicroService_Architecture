@@ -27,8 +27,13 @@ public class AuthenticationFilter extends AbstractGatewayFilterFactory<Authentic
     @Override
     public GatewayFilter apply(Config config) {
         return (exchange, chain) -> {
-            // 1. Check if the route is secured (not login/register)
+            // 📍 PERMIT OPTIONS: Allow preflight requests to pass without a token
+            if (org.springframework.http.HttpMethod.OPTIONS.equals(exchange.getRequest().getMethod())) {
+                return chain.filter(exchange);
+            }
+
             if (validator.isSecured.test(exchange.getRequest())) {
+                // ... your existing JWT validation logic
  
                 // 2. Check for the Authorization Header
                 String authHeader = exchange.getRequest().getHeaders().getFirst(HttpHeaders.AUTHORIZATION);

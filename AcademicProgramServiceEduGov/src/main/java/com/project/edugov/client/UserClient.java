@@ -16,7 +16,7 @@ public interface UserClient {
 	// Fetch UNIV_ADMIN details by ID
 	@GetMapping("/api/users/{id}")
 	UserFeignDTO getUserById(@PathVariable("id") Long id);
-	
+
 	@GetMapping("/api/users/role/{role}")
 	List<UserFeignDTO> getUsersByRole(@PathVariable("role") String role);
 }

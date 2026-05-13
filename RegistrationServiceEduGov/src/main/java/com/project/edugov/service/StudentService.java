@@ -26,4 +26,7 @@ public interface StudentService {
 
 	//Module 6 requirements
     List<StudentResponseDTO> getAllStudents();
+    
+ // 🟢 NEW: Fetch by User ID
+    Optional<StudentResponseDTO> getStudentByUserId(Long userId);
 }

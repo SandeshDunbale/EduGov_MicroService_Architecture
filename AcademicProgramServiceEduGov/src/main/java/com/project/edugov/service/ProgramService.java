@@ -17,6 +17,5 @@ public interface ProgramService {
 	List<ProgramDTO> getAllPrograms();
 
 	List<ProgramDTO> getProgramsByStatus(String status);
-	
-	
+
 }
