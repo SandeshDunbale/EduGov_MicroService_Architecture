@@ -56,4 +56,9 @@ public class GrantApplication {
 	@DecimalMin(value = "0.01", message = "Amount must be greater than 0")
 	@Positive(message = "Amount must be greater than zero")
 	private BigDecimal requestedAmount;
+	
+	
+	// Inside GrantApplication.java
+	@Column(name = "ReviewedByUserId")
+	private Long reviewedByUserId;
 }

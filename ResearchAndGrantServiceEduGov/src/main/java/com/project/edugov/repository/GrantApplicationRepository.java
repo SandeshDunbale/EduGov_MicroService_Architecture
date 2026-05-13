@@ -23,4 +23,6 @@ public interface GrantApplicationRepository extends JpaRepository<GrantApplicati
 	List<GrantApplication> findByStatusIn(List<GrantApplicationStatus> statuses);
     
     Optional<GrantApplication> findByProject(ResearchProject project);
+    
+    List<GrantApplication> findByReviewedByUserIdAndStatusIn(Long userId, List<GrantApplicationStatus> statuses);
 }

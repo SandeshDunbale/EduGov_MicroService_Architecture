@@ -5,6 +5,7 @@ import java.util.List;
 import com.project.edugov.dto.GrantApplicationDTO;
 import com.project.edugov.dto.GrantResponseDTO;
 import com.project.edugov.model.GrantApplication;
+import com.project.edugov.model.GrantApplicationStatus;
 import com.project.edugov.model.GrantStatus;
 
 public interface GrantService {
@@ -24,4 +25,5 @@ public interface GrantService {
 	List<GrantApplicationDTO> getGrantApplicationsByStatuses(List<String> statuses);
 	GrantApplicationDTO getGrantApplicationByProjectId(Long projectId);
 	List<GrantResponseDTO> getAllGrants();
+	List<GrantApplicationDTO> getManagerDecisionHistory(Long managerId);
 }

@@ -29,13 +29,13 @@ import lombok.extern.slf4j.Slf4j;
 public class GrantController {
 
 	private final GrantService grantService;
-	//private final AuditServiceImpl auditService;
+	// private final AuditServiceImpl auditService;
 
 	@PostMapping("/apply/{projectId}")
 	public ResponseEntity<GrantApplicationDTO> applyForGrant(@Valid @RequestBody GrantApplication application,
 			@PathVariable Long projectId, @RequestParam Long facultyId) {
 
-	//	auditService.logAction("APPLY_GRANT", "PROJECT_ID_" + projectId);
+		// auditService.logAction("APPLY_GRANT", "PROJECT_ID_" + projectId);
 
 		log.info("API Hit: POST /api/grants/apply/{} | Faculty ID: {}", projectId, facultyId);
 
@@ -44,12 +44,12 @@ public class GrantController {
 		log.info("Successfully processed application. Project: {}, Application ID: {}", projectId,
 				submittedApp.getApplicationID());
 
-		return new ResponseEntity<>(submittedApp, HttpStatus.CREATED);                // The empty < > is called the Diamond Operator.
-																		              // Because you already defined the type at the
-																		              // start of the method (public
-																		              // ResponseEntity<GrantApplicationDTO>), Java is
-																		              // smart enough to "infer" (guess) the type. You
-																		              // don't have to type the long name twice!
+		return new ResponseEntity<>(submittedApp, HttpStatus.CREATED); // The empty < > is called the Diamond Operator.
+																		// Because you already defined the type at the
+																		// start of the method (public
+																		// ResponseEntity<GrantApplicationDTO>), Java is
+																		// smart enough to "infer" (guess) the type. You
+																		// don't have to type the long name twice!
 	}
 
 	@GetMapping("/pending")
@@ -66,7 +66,8 @@ public class GrantController {
 	public ResponseEntity<?> approveGrant(@PathVariable Long applicationId, @RequestParam Long userId,
 			@RequestParam GrantStatus decision) {
 
-	//	auditService.logAction("GRANT_DECISION_" + decision.name(), "APPLICATION_ID_" + applicationId);
+		// auditService.logAction("GRANT_DECISION_" + decision.name(), "APPLICATION_ID_"
+		// + applicationId);
 
 		log.info("API Hit: POST /api/grants/decision/{} | Action: {} | Manager ID: {}", applicationId, decision,
 				userId);
@@ -100,11 +101,11 @@ public class GrantController {
 		log.info("API Hit: GET /api/grants/project/{} | Fetching grant details", projectId);
 		return ResponseEntity.ok(grantService.getGrantByProjectId(projectId));
 	}
-	
-	
-	//Module 6 Requirement
+
+	// Module 6 Requirement
 	@GetMapping("/applications/status")
-	public ResponseEntity<List<GrantApplicationDTO>> getApplicationsByStatus(@RequestParam("status") List<String> statuses) {
+	public ResponseEntity<List<GrantApplicationDTO>> getApplicationsByStatus(
+			@RequestParam("status") List<String> statuses) {
 		log.info("API Hit: GET /api/grants/applications/status | Statuses: {}", statuses);
 		return ResponseEntity.ok(grantService.getGrantApplicationsByStatuses(statuses));
 	}
@@ -119,5 +120,16 @@ public class GrantController {
 	public ResponseEntity<List<GrantResponseDTO>> getAllGrants() {
 		log.info("API Hit: GET /api/grants/all");
 		return ResponseEntity.ok(grantService.getAllGrants());
+	}
+
+	// ---> NEW: Endpoint for the Program Manager Dashboard <---
+	@GetMapping("/history/manager/{managerId}")
+	public ResponseEntity<List<GrantApplicationDTO>> getManagerDecisionHistory(@PathVariable Long managerId) {
+		log.info("API Hit: GET /api/grants/history/manager/{} | Fetching manager decision history", managerId);
+
+		List<GrantApplicationDTO> history = grantService.getManagerDecisionHistory(managerId);
+		log.debug("Found {} previous decisions for Manager ID: {}", history.size(), managerId);
+
+		return ResponseEntity.ok(history);
 	}
 }
