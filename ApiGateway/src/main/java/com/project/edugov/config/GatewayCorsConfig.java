@@ -13,16 +13,18 @@ public class GatewayCorsConfig {
 
     @Bean
     public CorsWebFilter corsWebFilter() {
-        CorsConfiguration corsConfig = new CorsConfiguration();
+CorsConfiguration corsConfig = new CorsConfiguration();
         
-        // 📍 Precision: Use your specific React origin
+        // Match exactly what the browser expects [cite: 165]
         corsConfig.setAllowedOrigins(Arrays.asList("http://localhost:3000"));
-        corsConfig.setMaxAge(3600L);
-        corsConfig.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
-        corsConfig.setAllowedHeaders(Arrays.asList("Authorization", "Content-Type", "Accept", "X-Requested-With"));
+        corsConfig.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
+        corsConfig.setAllowedHeaders(Arrays.asList("*")); // Use wildcard for headers to avoid mismatches [cite: 166]
         corsConfig.setAllowCredentials(true);
+        corsConfig.setMaxAge(3600L);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        
+        // Apply this to ALL paths (/**) to cover every microservice route [cite: 167]
         source.registerCorsConfiguration("/**", corsConfig);
 
         return new CorsWebFilter(source);

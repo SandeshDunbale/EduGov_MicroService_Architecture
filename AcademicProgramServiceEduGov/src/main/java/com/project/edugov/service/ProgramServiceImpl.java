@@ -137,23 +137,6 @@ public class ProgramServiceImpl implements ProgramService {
 		// FIRE AUDIT LOG
 		auditLogger.fireAndForgetLog(adminId, "CREATE_PROGRAM", "Program Title: " + savedProgram.getTitle());
 
-		// Broadcast alerts to student population
-		try {
-			log.info("[NOTIFICATION PROCESS] Initiating student alert broadcast");
-			List<UserFeignDTO> students = userClient.getUsersByRole("STUDENT");
-			for (UserFeignDTO student : students) {
-				try {
-					notificationClient.sendNotification(student.getUserId(), savedProgram.getProgramId(),
-							"New Program Alert: " + savedProgram.getTitle() + " is now open for enrollment.",
-							"PROGRAM_ANNOUNCEMENT", student.getEmail());
-				} catch (Exception ex) {
-					log.error("[NOTIFICATION FAILED] Delivery failed for Student ID: {}", student.getUserId());
-				}
-			}
-		} catch (Exception ex) {
-			log.error("[CRITICAL] Notification service failed during broadcast: {}", ex.getMessage());
-		}
-
 		log.info("[SUCCESS] POST request for program creation completed successfully");
 		return mapToCustomDto(savedProgram);
 	}

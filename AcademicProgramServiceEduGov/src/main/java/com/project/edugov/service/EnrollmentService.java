@@ -16,4 +16,6 @@ public interface EnrollmentService {
 	List<EnrollmentResponseDTO> getAllEnrollments();
 
 	void deleteEnrollment(Long enrollmentId, Long adminId);
+	
+	
 }

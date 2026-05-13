@@ -139,7 +139,7 @@ public class GatewayConfig {
                         .method("GET").and().path("/enrollments/all", "/enrollments/status/**,/enrollments/**")
                         .filters(f -> {
                             AuthenticationFilter.Config config = new AuthenticationFilter.Config();
-                            config.setAllowedRoles(List.of("UNIV_ADMIN"));
+                            config.setAllowedRoles(List.of("UNIV_ADMIN","STUDENT"));
                             return f.filter(authFilter.apply(config));
                         })
                         .uri("lb://ACADEMICPROGRAMSERVICEEDUGOV"))

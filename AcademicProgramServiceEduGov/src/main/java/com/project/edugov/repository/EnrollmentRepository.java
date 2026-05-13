@@ -16,4 +16,6 @@ public interface EnrollmentRepository extends JpaRepository<Enrollment, Long> {
 
 	// Find enrollments by status
 	List<Enrollment> findByStatus(Status status);
+	
+	
 }
