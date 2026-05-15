@@ -117,10 +117,10 @@ public class GatewayConfig {
                         }).uri("lb://REGISTRATIONSERVICEEDUGOV"))
 
                 // 4. ACADEMIC PROGRAM SERVICE
-                .route("academic-admin-modify", r -> r
-                        .method("POST", "PATCH", "PUT").and().path("/programs/**", "/courses/**", "/enrollments/update/**")
-                        .filters(f -> f.filter(authFilter.apply(new AuthenticationFilter.Config(List.of("UNIV_ADMIN")))))
-                        .uri("lb://ACADEMICPROGRAMSERVICEEDUGOV"))
+//                .route("academic-admin-modify", r -> r
+//                        .method("POST", "PATCH", "PUT","DELETE").and().path("/programs/**", "/courses/**", "/enrollments/update/**","/enrollments/delete/**")
+//                        .filters(f -> f.filter(authFilter.apply(new AuthenticationFilter.Config(List.of("UNIV_ADMIN")))))
+//                        .uri("lb://ACADEMICPROGRAMSERVICEEDUGOV"))
 
                 // Add this under your Academic Service section
                 .route("academic-student-view-enrollments", r -> r
@@ -173,12 +173,13 @@ public class GatewayConfig {
                         .uri("lb://COMPLIANCEANDGOVERNANCESERVICEEDUGOV"))
 
                 // 4a. Admin modifies courses, programs, and updates enrollments
-                .route("academic-admin-modify", r -> r.method("POST", "PATCH", "PUT").and()
-                        .path("/programs/**", "/courses/**", "/enrollments/update/**").filters(f -> {
-                            AuthenticationFilter.Config config = new AuthenticationFilter.Config();
-                            config.setAllowedRoles(List.of("UNIV_ADMIN"));
-                            return f.filter(authFilter.apply(config));
-                        }).uri("lb://ACADEMICPROGRAMSERVICEEDUGOV"))
+             // UPDATED CODE
+                .route("academic-admin-modify", r -> r
+                    .method("POST", "PATCH", "PUT","DELETE")
+                    // ADDED "/enrollments/update-status" explicitly below:
+                    .and().path("/programs/**", "/courses/**", "/enrollments/update-status", "/enrollments/update/**","/enrollments/delete/**")
+                    .filters(f -> f.filter(authFilter.apply(new AuthenticationFilter.Config(List.of("UNIV_ADMIN")))))
+                    .uri("lb://ACADEMICPROGRAMSERVICEEDUGOV"))
 
                 // 6. RESOURCE SERVICE
                 .route("resource-student-request", r -> r
