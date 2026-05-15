@@ -45,7 +45,7 @@ public class GrantController {
 	public ResponseEntity<GrantApplicationDTO> applyForGrant(@Valid @RequestBody GrantApplication application,
 			@PathVariable Long projectId, @RequestParam Long facultyId) {
 
-		// auditService.logAction("APPLY_GRANT", "PROJECT_ID_" + projectId);
+		//auditService.logAction("APPLY_GRANT", "PROJECT_ID_" + projectId);
 
 		log.info("API Hit: POST /api/grants/apply/{} | Faculty ID: {}", projectId, facultyId);
 
