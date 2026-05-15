@@ -89,4 +89,9 @@ public interface ResourceRequestRepository
     List<ResourceRequest> findByCreatedAtBetween(Instant from, Instant to);
 
     List<ResourceRequest> findByDecisionAtBetween(Instant from, Instant to);
+    boolean existsByInfrastructureAndStatusIn(
+    	    Infrastructure infra,
+    	    List<RequestStatus> statuses
+    	);
+    	
 }

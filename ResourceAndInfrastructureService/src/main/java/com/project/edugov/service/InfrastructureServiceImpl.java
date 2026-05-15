@@ -161,6 +161,10 @@ public class InfrastructureServiceImpl implements InfrastructureService {
     @Override
     public Infrastructure markInUse(Long infraId) {
         Infrastructure infra = getById(infraId);
+        if (infra.getStatus() != InfrastructureStatus.AVAILABLE) {
+            throw new IllegalStateException("Infrastructure already in use.");
+        }
+
         infra.setStatus(InfrastructureStatus.IN_USE);
         Infrastructure saved = infraRepo.save(infra);
         

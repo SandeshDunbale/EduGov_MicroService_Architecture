@@ -177,46 +177,40 @@ public class ResourceRequestServiceImpl implements ResourceRequestService {
     // ✅ SUBMIT INFRA REQUEST
     // ====================================================
     @Override
-    public ResourceRequest submitInfrastructureRequest(Long requesterUserId, Long infraId) {
+    public ResourceRequest submitInfrastructureRequest(Long userId, Long infraId) {
 
-        validateRole(requesterUserId, RequestItemType.INFRASTRUCTURE);
+        validateRole(userId, RequestItemType.INFRASTRUCTURE);
 
         Infrastructure infra = infraRepo.findById(infraId)
-                .orElseThrow(() -> new EntityNotFoundException("Infrastructure not found: " + infraId));
+                .orElseThrow(() -> new EntityNotFoundException("Infrastructure not found"));
 
-     // ✅ ADD THIS CHECK HERE
+        // ✅ ONLY AVAILABLE infra allowed
         if (infra.getStatus() != InfrastructureStatus.AVAILABLE) {
-            throw new IllegalStateException("Infrastructure is not available.");
+            throw new IllegalStateException("Infrastructure not available");
         }
 
+        // ✅ BLOCK duplicate request
+        boolean alreadyRequested =
+                requestRepo.existsByInfrastructureAndStatusIn(
+                        infra,
+                        List.of(RequestStatus.SUBMITTED, RequestStatus.APPROVED)
+                );
+
+        if (alreadyRequested) {
+            throw new IllegalStateException("Infrastructure already requested");
+        }
 
         ResourceRequest request = ResourceRequest.builder()
-                .requesterUserId(requesterUserId)
+                .requesterUserId(userId)
                 .infrastructure(infra)
                 .itemType(RequestItemType.INFRASTRUCTURE)
                 .status(RequestStatus.SUBMITTED)
                 .build();
 
-        ResourceRequest saved = requestRepo.save(request);
-
-        UserDTO requester = fetchUser(requesterUserId);
-
-        notifyUser(
-                requesterUserId,
-                saved.getRequestId(),
-                "Infrastructure request submitted successfully",
-                "INFRA_REQUEST",
-                requester.email()
-        );
-
-        auditLogger.fireAndForgetLog(
-                requesterUserId,
-                "SUBMIT_INFRASTRUCTURE_REQUEST",
-                "Infra ID: " + infraId
-        );
-
-        return saved;
+        return requestRepo.save(request);
     }
+
+
 
     // ====================================================
     // ✅ APPROVE
@@ -234,10 +228,28 @@ public class ResourceRequestServiceImpl implements ResourceRequestService {
                     request.getQuantity()
             );
         } else {
-            infrastructureService.markInUse(
-                    request.getInfrastructure().getInfraId()
-            );
+            Infrastructure infra = request.getInfrastructure();
+
+            // ✅ CHECK BEFORE APPROVING
+            if (infra.getStatus() != InfrastructureStatus.AVAILABLE) {
+                throw new IllegalStateException("Infrastructure is already in use.");
+            }
+
+            infrastructureService.markInUse(infra.getInfraId());
+
+            // ✅ OPTIONAL (BEST UX) → auto decline other pending requests
+            List<ResourceRequest> pendingRequests =
+                    requestRepo.findByInfrastructureAndStatus(infra, RequestStatus.SUBMITTED);
+
+            for (ResourceRequest r : pendingRequests) {
+                if (!r.getRequestId().equals(requestId)) {
+                    r.setStatus(RequestStatus.DECLINED);
+                    r.setReason("Infrastructure already allocated to another user");
+                    requestRepo.save(r);
+                }
+            }
         }
+        
 
         request.setStatus(RequestStatus.APPROVED);
         request.setApprovedByUserId(approverUserId);
