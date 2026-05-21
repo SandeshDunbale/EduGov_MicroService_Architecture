@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<session version="1.0">
+<refactoring comment="Rename compilation unit &apos;com.project.edugov.aspect.AuditProjectAspect.java&apos; to &apos;AuditResourceInfrastructureAspect.java&apos;&#x0D;&#x0A;- Original project: &apos;ResourceAndInfrastructureService&apos;&#x0D;&#x0A;- Original element: &apos;com.project.edugov.aspect.AuditProjectAspect.java&apos;&#x0D;&#x0A;- Renamed element: &apos;com.project.edugov.aspect.AuditResourceInfrastructureAspect.java&apos;" description="Rename compilation unit &apos;AuditProjectAspect.java&apos;" flags="2" id="org.eclipse.jdt.ui.rename.compilationunit" input="/src\/main\/java=/optional=/true=/=/maven.pomderived=/true=/&lt;com.project.edugov.aspect{AuditProjectAspect.java" name="AuditResourceInfrastructureAspect.java" references="false" stamp="1779363739592" version="1.0"/>
+</session>

@@ -1,0 +1,52 @@
+# ===================================================================
+# 1. APPLICATION IDENTITY & PORT
+# ===================================================================
+# Defines the unique name of this microservice in the system
+spring.application.name=ACADEMICPROGRAMSERVICEEDUGOV
+# The local port number where this service runs
+server.port=8085
+# Sets the temporary folder for the embedded Tomcat server to run smoothly
+server.tomcat.basedir=.tomcat
+
+# ===================================================================
+# 2. LOCAL DATABASE CONNECTION (MYSQL)
+# ===================================================================
+# The JDBC URL to connect to your local MySQL database (creates the database if missing)
+spring.datasource.url=jdbc:mysql://localhost:3306/edugov_academic_db?createDatabaseIfNotExist=true
+# The driver class name required to connect to MySQL
+spring.datasource.driver-class-name=com.mysql.cj.jdbc.Driver
+
+# ===================================================================
+# 3. CONFIG SERVER & EUREKA SERVICE DISCOVERY
+# ===================================================================
+# Pulls shared properties from the central Config Server running on port 8000
+spring.config.import=optional:configserver:http://localhost:8000
+# Registers this microservice with the Eureka Server running on port 8001
+eureka.client.service-url.defaultZone=http://localhost:8001/eureka/
+# Tells Eureka to use your local host name
+eureka.instance.hostname=localhost
+# Tells Eureka to use your IP address instead of host name for better routing
+eureka.instance.prefer-ip-address=true
+
+# ===================================================================
+# 4. ASYNC SECURITY CONFIGURATION
+# ===================================================================
+# Allows background threads (like your Async Audit Logger) to read user login details
+spring.security.strategy=MODE_INHERITABLETHREADLOCAL
+
+# ===================================================================
+# 5. RESILIENCE4J CIRCUIT BREAKER FOR IDENTITY SERVICE
+# ===================================================================
+# Tells OpenFeign to turn on and look for Circuit Breaker protection rules
+spring.cloud.openfeign.circuitbreaker.enabled=true
+
+# Tracks the last 4 network requests to check for failures
+resilience4j.circuitbreaker.instances.IDENTITYSERVICEEDUGOV.slidingWindowSize=4
+# Needs at least 2 requests to happen before checking if the service is down
+resilience4j.circuitbreaker.instances.IDENTITYSERVICEEDUGOV.minimumNumberOfCalls=2
+# Trips the circuit breaker if 50% or more requests fail
+resilience4j.circuitbreaker.instances.IDENTITYSERVICEEDUGOV.failureRateThreshold=50
+# Keeps the circuit OPEN (blocked) for 10 seconds before checking if it recovered
+resilience4j.circuitbreaker.instances.IDENTITYSERVICEEDUGOV.waitDurationInOpenState=10000
+# Automatically switches from OPEN to HALF_OPEN status to try again after 10 seconds
+resilience4j.circuitbreaker.instances.IDENTITYSERVICEEDUGOV.automaticTransitionFromOpenToHalfOpenEnabled=true

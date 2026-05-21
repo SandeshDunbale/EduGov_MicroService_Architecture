@@ -1,0 +1,72 @@
+import org.aspectj.lang.annotation.AfterReturning;
+import org.aspectj.lang.annotation.Aspect;
+import org.springframework.stereotype.Component;
+
+import com.project.edugov.client.AuditClient;
+import com.project.edugov.dto.AuditDTO;
+
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+
+@Aspect
+@Component
+@RequiredArgsConstructor
+@Slf4j
+public class AuditAspect {
+
+    private final AuditClient auditClient;
+
+    // Define fixed IDs for system modules
+    private static final Long PROGRAM_MODULE_ID = 1L;
+    private static final Long COURSE_MODULE_ID = 2L;
+    private static final Long ENROLLMENT_MODULE_ID = 3L;
+
+    private void sendAudit(Long moduleId, String action, String details) {
+        try {
+            AuditDTO dto = new AuditDTO();
+            dto.setScope("SYSTEM_LOG");
+            dto.setFindings("Activity: " + action + " | Details: " + details);
+            dto.setStatus("PENDING_VALIDATION");
+            
+            // Pass the fixed Module ID as the officerId
+            dto.setOfficerId(moduleId != null ? moduleId : 0L);
+            
+            auditClient.createAuditEntry(dto);
+        } catch (Exception e) {
+            log.error("Failed to send audit log for action: {}. Reason: {}", action, e.getMessage());
+        }
+    }
+
+    // --- PROGRAM SERVICE HOOKS ---
+    @AfterReturning("execution(* com.project.edugov.service.ProgramServiceImpl.createProgram(..))")
+    public void afterCreateProgram() {
+        sendAudit(PROGRAM_MODULE_ID, "CREATE_PROGRAM", "Created new program");
+    }
+
+    @AfterReturning("execution(* com.project.edugov.service.ProgramServiceImpl.updateProgramById(..)) && args(id, ..)")
+    public void afterUpdateProgram(Long id) {
+        sendAudit(PROGRAM_MODULE_ID, "UPDATE_PROGRAM", "Updated Program ID: " + id);
+    }
+
+    // --- COURSE SERVICE HOOKS ---
+    @AfterReturning("execution(* com.project.edugov.service.CourseServiceImpl.createCourse(..))")
+    public void afterCreateCourse() {
+        sendAudit(COURSE_MODULE_ID, "CREATE_COURSE", "New course added");
+    }
+
+    @AfterReturning("execution(* com.project.edugov.service.CourseServiceImpl.updateCourse(..)) && args(id, ..)")
+    public void afterUpdateCourse(Long id) {
+        sendAudit(COURSE_MODULE_ID, "UPDATE_COURSE", "Updated Course ID: " + id);
+    }
+
+    // --- ENROLLMENT SERVICE HOOKS ---
+    @AfterReturning("execution(* com.project.edugov.service.EnrollmentServiceImpl.applyForCourse(..)) && args(sId, cId)")
+    public void afterApply(Long sId, Long cId) {
+        sendAudit(ENROLLMENT_MODULE_ID, "ENROLLMENT_APPLICATION", "Student ID: " + sId + " applied for Course ID: " + cId);
+    }
+
+    @AfterReturning("execution(* com.project.edugov.service.EnrollmentServiceImpl.deleteEnrollment(..)) && args(eId, ..)")
+    public void afterDeleteEnrollment(Long eId) {
+        sendAudit(ENROLLMENT_MODULE_ID, "DELETE_ENROLLMENT", "Deleted Enrollment ID: " + eId);
+    }
+}

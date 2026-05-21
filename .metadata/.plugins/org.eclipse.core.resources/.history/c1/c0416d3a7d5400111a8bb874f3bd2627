@@ -1,0 +1,52 @@
+# Identity - Must match the filename in your GitHub
+spring.application.name=ACADEMICPROGRAMSERVICEEDUGOV
+
+# SPECIFIC DATABASE CONNECTION FOR ACADEMIC SERVICE
+spring.datasource.url=jdbc:mysql://localhost:3306/edugov_academic_db?createDatabaseIfNotExist=true
+# spring.datasource.username=root
+# spring.datasource.password=${DB_PASSWORD}
+spring.datasource.driver-class-name=com.mysql.cj.jdbc.Driver
+
+# Networking & Service Discovery
+server.port=8085
+eureka.client.service-url.defaultZone=http://localhost:8001/eureka/
+eureka.instance.prefer-ip-address=true
+eureka.instance.hostname=localhost
+
+# Config Server Connection
+spring.config.import=optional:configserver:http://localhost:8000
+
+# Server configuration
+server.tomcat.basedir=.tomcat
+
+
+# 1. ENABLE CIRCUIT BREAKER FOR FEIGN CLIENT (CRITICAL)
+spring.cloud.openfeign.circuitbreaker.enabled=true
+
+# 2. RESILIENCE4J TESTING CONFIGURATION (Easy to trip for testing)
+# We set small numbers so you don't have to wait or click 100 times to see it work!
+
+# How many requests to track in the history window
+resilience4j.circuitbreaker.instances.IDENTITYSERVICEEDUGOV.slidingWindowSize=4
+
+# Minimum requests needed before it calculates success/failure rate
+resilience4j.circuitbreaker.instances.IDENTITYSERVICEEDUGOV.minimumNumberOfCalls=2
+
+# If 50% or more requests fail, open the circuit (stop trying)
+resilience4j.circuitbreaker.instances.IDENTITYSERVICEEDUGOV.failureRateThreshold=50
+
+# How long (in milliseconds) the circuit stays OPEN before trying again (10 seconds)
+resilience4j.circuitbreaker.instances.IDENTITYSERVICEEDUGOV.waitDurationInOpenState=10000
+
+# Automatically move from OPEN to HALF_OPEN after the wait time finishes
+resilience4j.circuitbreaker.instances.IDENTITYSERVICEEDUGOV.automaticTransitionFromOpenToHalfOpenEnabled=true
+
+# Timeout for making a connection to the SMTP server (5 seconds)
+spring.mail.properties.mail.smtp.connectiontimeout=5000
+# Timeout for waiting for a response from the SMTP server (5 seconds)
+spring.mail.properties.mail.smtp.timeout=5000
+# Timeout for writing the email data to the server (5 seconds)
+spring.mail.properties.mail.smtp.writetimeout=5000
+
+# Allows the security context to be accessible in @Async threads
+spring.security.strategy=MODE_INHERITABLETHREADLOCAL

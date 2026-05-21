@@ -1,0 +1,47 @@
+package com.project.edugov.aspect;
+
+import com.project.edugov.client.AuditClient;
+import com.project.edugov.dto.AuditDTO;
+import org.aspectj.lang.annotation.AfterReturning;
+import org.aspectj.lang.annotation.Aspect;
+import org.springframework.stereotype.Component;
+import lombok.RequiredArgsConstructor;
+
+@Aspect
+@Component
+@RequiredArgsConstructor
+public class AuditProjectAspect {
+
+    private final AuditClient auditClient;
+
+    private void sendAudit(Long userId, String action, String details) {
+        AuditDTO dto = new AuditDTO();
+        dto.setScope("PROJECT"); // Strictly setting scope to PROJECT
+        dto.setFindings("Activity: " + action + " | Details: " + details);
+        dto.setStatus("PENDING_VALIDATION");
+        dto.setOfficerId(userId != null ? userId : 0L);
+        auditClient.createAuditEntry(dto);
+    }
+
+    // --- RESEARCH PROJECT HOOKS ---
+    @AfterReturning("execution(* com.project.edugov.service.ResearchProjectServiceImpl.createProject(..)) && args(project, facultyId)")
+    public void afterCreateProject(Object project, Long facultyId) {
+        sendAudit(facultyId, "CREATE_PROJECT", "New research project initiated");
+    }
+
+    @AfterReturning("execution(* com.project.edugov.service.ResearchProjectServiceImpl.updateProjectStatus(..)) && args(projectId, status)")
+    public void afterUpdateProjectStatus(Long projectId, Object status) {
+        sendAudit(0L, "UPDATE_PROJECT_STATUS", "Project ID " + projectId + " status changed to " + status);
+    }
+
+    // --- GRANT SERVICE HOOKS ---
+    @AfterReturning("execution(* com.project.edugov.service.GrantServiceImpl.applyForGrant(..)) && args(details, projectId, facultyId)")
+    public void afterApplyGrant(Object details, Long projectId, Long facultyId) {
+        sendAudit(facultyId, "APPLY_GRANT", "Grant application submitted for Project ID: " + projectId);
+    }
+
+    @AfterReturning("execution(* com.project.edugov.service.GrantServiceImpl.approveGrantApplication(..)) && args(appId, userId, decision)")
+    public void afterApproveGrant(Long appId, Long userId, Object decision) {
+        sendAudit(userId, "GRANT_DECISION", "Decision " + decision + " made on Application ID: " + appId);
+    }
+}

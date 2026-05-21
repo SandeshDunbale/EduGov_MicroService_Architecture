@@ -1,0 +1,29 @@
+package com.project.edugov.aspect;
+
+import com.project.edugov.client.AuditClient;
+import com.project.edugov.dto.AuditDTO;
+import org.aspectj.lang.annotation.AfterReturning;
+import org.aspectj.lang.annotation.Aspect;
+import org.springframework.stereotype.Component;
+import lombok.RequiredArgsConstructor;
+
+@Aspect
+@Component
+@RequiredArgsConstructor
+public class AuditAspect {
+
+    private final AuditClient auditClient;
+
+    // This "hooks" into the success of createProgram
+    @AfterReturning(pointcut = "execution(* com.project.edugov.service.ProgramServiceImpl.createProgram(..))", returning = "result")
+    public void afterCreate(Object result) {
+        // You can extract the title/data from the 'result' (ProgramDTO)
+        // For now, this triggers the audit automatically
+        AuditDTO dto = new AuditDTO();
+        dto.setScope("New Academic Program Created");
+        dto.setStatus("PENDING_VALIDATION");
+        dto.setOfficerId(1L); // Replace with dynamic logic if needed
+        
+        auditClient.createAuditEntry(dto);
+    }
+}

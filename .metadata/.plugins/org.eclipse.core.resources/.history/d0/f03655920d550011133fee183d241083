@@ -1,0 +1,80 @@
+package com.project.edugov.aspect;
+
+import com.project.edugov.client.AuditClient;
+import com.project.edugov.dto.AuditDTO;
+import com.project.edugov.service.CourseServiceImpl;
+
+import org.aspectj.lang.JoinPoint;
+import org.aspectj.lang.annotation.AfterReturning;
+import org.aspectj.lang.annotation.Aspect;
+import org.springframework.stereotype.Component;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+
+@Aspect
+@Component
+@RequiredArgsConstructor
+@Slf4j
+public class AuditAspect {
+
+    private final AuditClient auditClient;
+
+    // Helper to send to Audit DB
+    private void sendAudit(Long userId, String action, String details) {
+        try {
+            AuditDTO dto = new AuditDTO();
+            dto.setScope("PROGRAM");
+            dto.setFindings("Activity: " + action + " | Details: " + details);
+            dto.setStatus("PENDING_VALIDATION");
+            
+            // FIX 1: If userId is 0 (System fallback), set to null so it doesn't 
+            // trigger 404s in the Audit Service/Identity Service validation.
+            dto.setOfficerId((userId == null || userId == 0L) ? null : userId);
+            
+            auditClient.createAuditEntry(dto);
+        } catch (Exception e) {
+            // FIX 2: Graceful degradation. If Audit Service fails, log it locally 
+            // rather than crashing the whole program/course update operation.
+            log.error("Failed to send audit log for action: {}. Reason: {}", action, e.getMessage());
+        }
+    }
+
+    // --- PROGRAM SERVICE HOOKS ---
+    @AfterReturning("execution(* com.project.edugov.service.ProgramServiceImpl.createProgram(..)) && args(program, adminId)")
+    public void afterCreateProgram(Object program, Long adminId) {
+        sendAudit(adminId, "CREATE_PROGRAM", "Created new program");
+    }
+
+    @AfterReturning("execution(* com.project.edugov.service.ProgramServiceImpl.updateProgramById(..)) && args(id, details)")
+    public void afterUpdateProgram(Long id, Object details) {
+        sendAudit(0L, "UPDATE_PROGRAM", "Updated Program ID: " + id);
+    }
+
+    // --- COURSE SERVICE HOOKS ---
+    @AfterReturning("execution(* com.project.edugov.service.CourseServiceImpl.createCourse(..)) && args(course, adminId)")
+    public void afterCreateCourse(Object course, Long adminId) {
+        sendAudit(adminId, "CREATE_COURSE", "New course added");
+    }
+
+    @AfterReturning("execution(* com.project.edugov.service.CourseServiceImpl.updateCourse(..)) && args(id, details)")
+    public void afterUpdateCourse(Long id, Object details) {
+        sendAudit(0L, "UPDATE_COURSE", "Updated Course ID: " + id);
+    }
+
+    // --- ENROLLMENT SERVICE HOOKS ---
+    @AfterReturning("execution(* com.project.edugov.service.EnrollmentServiceImpl.applyForCourse(..)) && args(sId, cId)")
+    public void afterApply(Long sId, Long cId) {
+        sendAudit(sId, "ENROLLMENT_APPLICATION", "Student ID: " + sId + " applied for Course ID: " + cId);
+    }
+
+    @AfterReturning("execution(* com.project.edugov.service.EnrollmentServiceImpl.updateEnrollmentStatus(..)) && args(data)")
+    public void afterUpdateStatus(Object data) {
+        // Here you can cast 'data' to Map if you need specific ID extraction
+        sendAudit(0L, "ENROLLMENT_STATUS_CHANGE", "Status updated for enrollment");
+    }
+
+    @AfterReturning("execution(* com.project.edugov.service.EnrollmentServiceImpl.deleteEnrollment(..)) && args(eId, aId)")
+    public void afterDeleteEnrollment(Long eId, Long aId) {
+        sendAudit(aId, "DELETE_ENROLLMENT", "Deleted Enrollment ID: " + eId);
+    }
+}

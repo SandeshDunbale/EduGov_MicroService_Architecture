@@ -1,0 +1,62 @@
+package com.project.edugov.aspect;
+
+
+import org.aspectj.lang.annotation.AfterReturning;
+import org.aspectj.lang.annotation.Aspect;
+import org.springframework.stereotype.Component;
+
+import com.project.edugov.client.AuditClient;
+import com.project.edugov.dto.AuditDTO;
+
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+
+@Aspect
+@Component
+@RequiredArgsConstructor
+@Slf4j
+public class AuditProjectAspect {
+
+    private final AuditClient auditClient;
+
+    // Fixed ID 3 for Project/Grant related modules as requested
+    private static final Long PROJECT_MODULE_ID = 3L;
+
+    private void sendAudit(Long userId, String action, String details) {
+        try {
+            AuditDTO dto = new AuditDTO();
+            dto.setScope("PROJECT_MANAGEMENT");
+            dto.setFindings("Activity: " + action + " | Details: " + details);
+            dto.setStatus("PENDING_VALIDATION");
+            
+            // Use provided userId if valid, otherwise fallback to fixed ID 3
+            dto.setOfficerId((userId != null && userId != 0L) ? userId : PROJECT_MODULE_ID);
+            
+            auditClient.createAuditEntry(dto);
+        } catch (Exception e) {
+            log.error("Audit logging failed for action: {}. Error: {}", action, e.getMessage());
+        }
+    }
+
+    // --- RESEARCH PROJECT SERVICE HOOKS ---
+    @AfterReturning(pointcut = "execution(* com.project.edugov.service.ResearchProjectServiceImpl.createProject(..))", returning = "result")
+    public void afterCreateProject(Object result) {
+        sendAudit(PROJECT_MODULE_ID, "CREATE_PROJECT", "Project created: " + result.toString());
+    }
+
+    @AfterReturning("execution(* com.project.edugov.service.ResearchProjectServiceImpl.updateProjectStatus(..)) && args(projectId, newStatus)")
+    public void afterUpdateProjectStatus(Long projectId, Object newStatus) {
+        sendAudit(PROJECT_MODULE_ID, "UPDATE_PROJECT_STATUS", "Project ID: " + projectId + " status updated to " + newStatus);
+    }
+
+    // --- GRANT SERVICE HOOKS ---
+    @AfterReturning(pointcut = "execution(* com.project.edugov.service.GrantServiceImpl.applyForGrant(..))", args = "newDetails, projectId, facultyId")
+    public void afterApplyForGrant(Object newDetails, Long projectId, Long facultyId) {
+        sendAudit(facultyId, "APPLY_GRANT", "Project ID: " + projectId + ", Faculty ID: " + facultyId);
+    }
+
+    @AfterReturning(pointcut = "execution(* com.project.edugov.service.GrantServiceImpl.approveGrantApplication(..))", args = "applicationId, userId, decision")
+    public void afterApproveGrant(Long applicationId, Long userId, Object decision) {
+        sendAudit(userId, "APPROVE_GRANT", "Application ID: " + applicationId + ", Decision: " + decision);
+    }
+}}

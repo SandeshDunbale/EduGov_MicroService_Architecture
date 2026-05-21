@@ -1,0 +1,63 @@
+package com.project.edugov;
+
+import org.modelmapper.ModelMapper;
+import org.modelmapper.convention.MatchingStrategies;
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.cloud.openfeign.EnableFeignClients;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.ComponentScan;
+import org.springframework.scheduling.annotation.EnableAsync;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
+
+import feign.RequestInterceptor;
+import jakarta.servlet.http.HttpServletRequest;
+
+// Marks this as a Spring Boot configuration application class
+@SpringBootApplication
+// Enables Feign Clients to talk to other microservices
+@EnableFeignClients(basePackages = "com.project.edugov.client") 
+// Scans the packages to find and configure all Spring components
+@ComponentScan(basePackages = "com.project.edugov")    
+// Enables background processing for asynchronous tasks like logging
+@EnableAsync
+public class AcademicProgramServiceEduGovApplication {
+
+	// Main method that starts up the whole application
+	public static void main(String[] args) {
+		SpringApplication.run(AcademicProgramServiceEduGovApplication.class, args);
+	}
+
+	// Creates a bean to map Entity objects into DTO objects
+	@Bean
+	public ModelMapper modelMapper() {
+		ModelMapper modelMapper = new ModelMapper();
+
+		// Strict matching prevents ambiguous ID mapping across microservices
+		modelMapper.getConfiguration().setMatchingStrategy(MatchingStrategies.STRICT);
+
+		return modelMapper;
+	}
+
+	// Interceptor that copies security headers to outgoing service requests
+	@Bean
+	public RequestInterceptor requestInterceptor() {
+		return requestTemplate -> {
+			// Gets the current request context from the executing thread
+			ServletRequestAttributes attributes = 
+				(ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
+			
+			if (attributes != null) {
+				HttpServletRequest request = attributes.getRequest();
+				// Grab the token from the incoming Gateway request
+				String authHeader = request.getHeader("Authorization");
+				
+				// Attach it to the outgoing Feign request
+				if (authHeader != null) {
+					requestTemplate.header("Authorization", authHeader);
+				}
+			}
+		};
+	}
+}

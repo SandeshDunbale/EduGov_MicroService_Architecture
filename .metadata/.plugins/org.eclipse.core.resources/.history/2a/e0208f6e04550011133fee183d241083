@@ -1,0 +1,7 @@
+package com.project.edugov.client;
+
+@FeignClient(name = "COMPLIANCE-SERVICE")
+public interface AuditClient {
+    @PostMapping("/api/audits/create")
+    void createAuditEntry(@RequestBody AuditDTO auditDto);
+}

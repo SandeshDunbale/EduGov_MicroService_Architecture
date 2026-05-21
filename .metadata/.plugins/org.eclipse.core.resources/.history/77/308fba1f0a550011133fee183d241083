@@ -1,0 +1,58 @@
+package com.project.edugov.aspect;
+
+import com.project.edugov.client.AuditClient;
+import com.project.edugov.dto.AuditDTO;
+import org.aspectj.lang.annotation.AfterReturning;
+import org.aspectj.lang.annotation.Aspect;
+import org.springframework.stereotype.Component;
+import lombok.RequiredArgsConstructor;
+
+@Aspect
+@Component
+@RequiredArgsConstructor
+public class AuditResourceInfrastructureAspect {
+
+    private final AuditClient auditClient;
+
+    private void sendAudit(Long userId, String action, String scope, String details) {
+        AuditDTO dto = new AuditDTO();
+        dto.setScope(scope); // "RESOURCE" or "INFRASTRUCTURE"
+        dto.setFindings("Activity: " + action + " | Details: " + details);
+        dto.setStatus("PENDING_VALIDATION");
+        dto.setOfficerId(userId != null ? userId : 0L);
+        auditClient.createAuditEntry(dto);
+    }
+
+    // --- INFRASTRUCTURE SERVICE HOOKS ---
+    @AfterReturning(pointcut = "execution(* com.project.edugov.service.InfrastructureServiceImpl.create(..))", returning = "result")
+    public void afterCreateInfra(Object result) {
+        sendAudit(0L, "CREATE_INFRASTRUCTURE", "INFRASTRUCTURE", "Created: " + result.toString());
+    }
+
+    @AfterReturning("execution(* com.project.edugov.service.InfrastructureServiceImpl.updateStatus(..)) && args(id, status)")
+    public void afterUpdateInfraStatus(Long id, Object status) {
+        sendAudit(0L, "UPDATE_INFRA_STATUS", "INFRASTRUCTURE", "Infra ID: " + id + " to " + status);
+    }
+
+    // --- RESOURCE SERVICE HOOKS ---
+    @AfterReturning(pointcut = "execution(* com.project.edugov.service.ResourceServiceImpl.create(..))", returning = "result")
+    public void afterCreateResource(Object result) {
+        sendAudit(0L, "CREATE_RESOURCE", "RESOURCE", "Created: " + result.toString());
+    }
+
+    @AfterReturning("execution(* com.project.edugov.service.ResourceServiceImpl.allocate(..)) && args(id, qty)")
+    public void afterAllocateResource(Long id, int qty) {
+        sendAudit(0L, "ALLOCATE_RESOURCE", "RESOURCE", "Resource ID: " + id + ", Qty: " + qty);
+    }
+
+    // --- REQUEST SERVICE HOOKS ---
+    @AfterReturning("execution(* com.project.edugov.service.ResourceRequestServiceImpl.submitResourceRequest(..)) && args(userId, resId, qty)")
+    public void afterSubmitResRequest(Long userId, Long resId, int qty) {
+        sendAudit(userId, "SUBMIT_RESOURCE_REQUEST", "RESOURCE", "Res ID: " + resId + ", Qty: " + qty);
+    }
+
+    @AfterReturning("execution(* com.project.edugov.service.ResourceRequestServiceImpl.submitInfrastructureRequest(..)) && args(userId, infraId)")
+    public void afterSubmitInfraRequest(Long userId, Long infraId) {
+        sendAudit(userId, "SUBMIT_INFRASTRUCTURE_REQUEST", "INFRASTRUCTURE", "Infra ID: " + infraId);
+    }
+}

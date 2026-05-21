@@ -1,0 +1,5 @@
+package com.project.edugov.client;
+
+public interface AuditClient {
+
+}

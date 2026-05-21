@@ -1,0 +1,38 @@
+package com.project.edugov.aspect;
+
+import com.project.edugov.client.AuditClient;
+import com.project.edugov.dto.AuditDTO;
+import org.aspectj.lang.annotation.AfterReturning;
+import org.aspectj.lang.annotation.Aspect;
+import org.springframework.stereotype.Component;
+import lombok.RequiredArgsConstructor;
+
+@Aspect
+@Component
+@RequiredArgsConstructor
+public class AuditAspect {
+
+    private final AuditClient auditClient;
+
+    // This hooks into your existing createProgram method
+    @AfterReturning(pointcut = "execution(* com.project.edugov.service.ProgramServiceImpl.createProgram(..))", returning = "result")
+    public void afterCreate(Object result) {
+        AuditDTO dto = new AuditDTO();
+        dto.setScope("New Program Created");
+        dto.setStatus("PENDING_VALIDATION");
+        dto.setOfficerId(1L); // You can modify this to extract the actual Admin ID from the result
+        
+        auditClient.createAuditEntry(dto);
+    }
+
+    // This hooks into your existing updateProgramById method
+    @AfterReturning(pointcut = "execution(* com.project.edugov.service.ProgramServiceImpl.updateProgramById(..))", returning = "result")
+    public void afterUpdate(Object result) {
+        AuditDTO dto = new AuditDTO();
+        dto.setScope("Program Updated");
+        dto.setStatus("PENDING_VALIDATION");
+        dto.setOfficerId(1L);
+        
+        auditClient.createAuditEntry(dto);
+    }
+}

@@ -1,0 +1,9 @@
+package com.project.edugov.dto;
+
+@Data
+public class AuditDTO {
+    private String scope;     // Will store: PROGRAM, PROJECT, GRANT, etc.
+    private String findings;  // Will store: The specific action (e.g., "Created", "Updated")
+    private String status;
+    private Long officerId;
+}
