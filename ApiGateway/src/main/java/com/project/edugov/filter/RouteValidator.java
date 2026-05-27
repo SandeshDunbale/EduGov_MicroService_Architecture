@@ -8,15 +8,6 @@ import org.springframework.stereotype.Component;
 
 @Component
 public class RouteValidator {
-
-//    public static final List<String> openApiEndpoints = List.of(
-//            "/api/auth/login",
-//            "/api/auth/recoverEmail",
-//            "/api/auth/resetPassword",
-//            "/api/identity/register",
-//            "/eureka"
-//    );
-
 	public static final List<String> openApiEndpoints = List.of("/api/auth/login", "/api/users/recoverEmail", // <--
 																												// FIXED
 																												// PATH
